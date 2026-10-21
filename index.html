@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f5f4ef">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Finanças">
+<title>Finanças da Casa</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+  :root {
+    --bg: #f5f4ef;
+    --card: #ffffff;
+    --ink: #1d1d1b;
+    --muted: #6d6c66;
+    --line: #e4e2da;
+    --verde: #17784a;
+    --verde-bg: #e6f3ec;
+    --vermelho: #c2352b;
+    --vermelho-bg: #fbe9e7;
+    --ambar: #a15c00;
+    --ambar-bg: #fdf0dc;
+    --acento: #1f4e79;
+    --raio: 14px;
+    --sombra: 0 1px 2px rgba(0,0,0,.05), 0 4px 14px rgba(0,0,0,.05);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100dvh;
+    overscroll-behavior-y: contain;
+  }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; touch-action: manipulation; user-select: none; }
+  .num { font-variant-numeric: tabular-nums; }
+  .app { max-width: 560px; margin: 0 auto; padding: env(safe-area-inset-top) 16px calc(96px + env(safe-area-inset-bottom)); }
+  [hidden] { display: none !important; }
+
+  /* Login e entrada */
+  .tela-centro { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; }
+  .caixa { width: 100%; max-width: 380px; background: var(--card); border-radius: 20px; padding: 28px 22px; box-shadow: var(--sombra); }
+  .caixa h1 { font-size: 22px; margin: 0 0 4px; }
+  .caixa p { color: var(--muted); margin: 0 0 20px; font-size: 15px; }
+  .campo { display: block; margin-bottom: 14px; }
+  .campo span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .campo input, .campo select {
+    width: 100%; font-size: 16px; padding: 12px 14px; border: 1px solid var(--line);
+    border-radius: 10px; background: #fff; outline: none;
+  }
+  .campo input:focus, .campo select:focus { border-color: var(--acento); box-shadow: 0 0 0 3px rgba(31,78,121,.12); }
+  .btn { display: block; width: 100%; padding: 13px; border: 0; border-radius: 12px; font-weight: 600; background: var(--ink); color: #fff; }
+  .btn:active { transform: scale(.98); }
+  .btn.sec { background: transparent; color: var(--ink); border: 1px solid var(--line); margin-top: 10px; }
+  .btn.perigo { background: var(--vermelho-bg); color: var(--vermelho); }
+  .link { background: none; border: 0; color: var(--acento); padding: 8px 0; font-size: 14px; }
+  .erro { color: var(--vermelho); font-size: 14px; min-height: 20px; margin: 4px 0 10px; }
+
+  /* Topo */
+  .topo { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 10px; position: sticky; top: 0; background: var(--bg); z-index: 5; }
+  .mes { display: flex; align-items: center; gap: 4px; }
+  .mes h2 { font-size: 19px; margin: 0; min-width: 150px; text-align: center; }
+  .icone { width: 40px; height: 40px; border-radius: 50%; border: 0; background: transparent; display: grid; place-items: center; font-size: 20px; color: var(--muted); }
+  .icone:active { background: var(--line); }
+
+  /* Resumo */
+  .resumo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .card { background: var(--card); border-radius: var(--raio); padding: 14px; box-shadow: var(--sombra); }
+  .card .rot { font-size: 12.5px; color: var(--muted); }
+  .card .val { font-size: 21px; font-weight: 700; margin-top: 2px; letter-spacing: -.01em; }
+  .card.largo { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 12px; }
+  .card.largo div { flex: 1; }
+  .card.largo .val { font-size: 17px; }
+  .pos { color: var(--verde); }
+  .neg { color: var(--vermelho); }
+  .avisos { display: grid; gap: 8px; margin-bottom: 14px; }
+  .aviso { border-radius: 12px; padding: 10px 12px; font-size: 14px; }
+  .aviso.ruim { background: var(--vermelho-bg); color: #8f2119; }
+  .aviso.atencao { background: var(--ambar-bg); color: #7a4500; }
+
+  /* Filtros */
+  .filtros { display: flex; gap: 8px; margin: 4px -16px 6px; padding: 0 16px; overflow-x: auto; scrollbar-width: none; }
+  .chip { flex: none; white-space: nowrap; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 14px; font-size: 14px; color: var(--muted); }
+  .chip.ativo { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  /* Lista */
+  .dia { margin-top: 14px; scroll-margin-top: 70px; }
+  .dia-cab { font-size: 13px; color: var(--muted); padding: 0 4px 6px; display: flex; justify-content: space-between; }
+  .dia-cab.hoje { color: var(--acento); font-weight: 600; }
+  .lista { background: var(--card); border-radius: var(--raio); box-shadow: var(--sombra); overflow: hidden; }
+  .item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--line); }
+  .item:first-child { border-top: 0; }
+  .item.previsto .desc, .item.previsto .valor { opacity: .62; }
+  .check {
+    flex: none; width: 28px; height: 28px; border-radius: 50%; border: 2px solid #c9c7be;
+    background: transparent; display: grid; place-items: center; font-size: 15px; color: transparent; padding: 0;
+  }
+  .check.ok { background: var(--verde); border-color: var(--verde); color: #fff; }
+  .check.atrasado { border-color: var(--ambar); }
+  .corpo { flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 0; display: flex; align-items: center; gap: 10px; }
+  .corpo .txt { flex: 1; min-width: 0; }
+  .desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15.5px; }
+  .meta { display: flex; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
+  .tag { font-size: 11.5px; color: var(--muted); background: var(--bg); border-radius: 6px; padding: 1px 7px; }
+  .tag.atraso { color: var(--ambar); background: var(--ambar-bg); }
+  .dir { text-align: right; flex: none; }
+  .valor { font-weight: 600; font-size: 15.5px; }
+  .saldo-linha { font-size: 12px; color: var(--muted); }
+  .saldo-linha.neg { color: var(--vermelho); }
+  .vazio { text-align: center; color: var(--muted); padding: 40px 10px; }
+
+  /* Botão de adicionar */
+  .fab {
+    position: fixed; right: max(16px, calc(50% - 264px)); bottom: calc(20px + env(safe-area-inset-bottom));
+    width: 60px; height: 60px; border-radius: 50%; border: 0; background: var(--ink); color: #fff;
+    font-size: 30px; line-height: 1; box-shadow: 0 6px 18px rgba(0,0,0,.22); z-index: 10;
+  }
+  .fab:active { transform: scale(.95); }
+
+  /* Painel deslizante */
+  .fundo { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 20; opacity: 0; transition: opacity .2s; }
+  .fundo.aberto { opacity: 1; }
+  .painel {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; max-width: 560px; margin: 0 auto;
+    background: var(--card); border-radius: 20px 20px 0 0; padding: 10px 18px calc(18px + env(safe-area-inset-bottom));
+    max-height: 92dvh; overflow-y: auto; transform: translateY(100%); transition: transform .25s cubic-bezier(.2,.8,.2,1);
+  }
+  .painel.aberto { transform: translateY(0); }
+  .alca { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 12px; }
+  .painel h3 { margin: 0 0 14px; font-size: 18px; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--bg); border-radius: 12px; padding: 4px; margin-bottom: 14px; }
+  .seg button { border: 0; background: transparent; padding: 10px; border-radius: 9px; font-weight: 600; color: var(--muted); }
+  .seg button.ativo[data-tipo="despesa"] { background: #fff; color: var(--vermelho); box-shadow: var(--sombra); }
+  .seg button.ativo[data-tipo="receita"] { background: #fff; color: var(--verde); box-shadow: var(--sombra); }
+  .valor-grande input { font-size: 28px; font-weight: 700; padding: 10px 14px; }
+  .duas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .toggle { display: flex; align-items: center; justify-content: space-between; padding: 10px 0 14px; font-size: 15px; }
+  .toggle input { width: 22px; height: 22px; accent-color: var(--verde); }
+  .acoes-extra { display: grid; gap: 8px; margin-top: 10px; }
+  .info-casa { background: var(--bg); border-radius: 12px; padding: 14px; margin-bottom: 14px; font-size: 14px; }
+  .codigo { font-size: 24px; font-weight: 700; letter-spacing: .12em; margin-top: 4px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 40;
+    opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; max-width: calc(100% - 32px);
+  }
+  .toast.visivel { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .carregando { text-align: center; color: var(--muted); padding: 60px 0; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<section id="tela-login" class="tela-centro" hidden>
+  <form class="caixa" id="form-login">
+    <h1>Finanças da Casa</h1>
+    <p id="login-sub">Entre com seu e-mail e senha.</p>
+    <label class="campo"><span>E-mail</span><input type="email" id="login-email" autocomplete="email" required></label>
+    <label class="campo"><span>Senha</span><input type="password" id="login-senha" autocomplete="current-password" minlength="6" required></label>
+    <div class="erro" id="login-erro"></div>
+    <button class="btn" type="submit" id="login-btn">Entrar</button>
+    <button class="btn sec" type="button" id="login-alternar">Ainda não tenho conta</button>
+    <button class="link" type="button" id="login-esqueci">Esqueci a senha</button>
+  </form>
+</section>
+
+<!-- Nova senha (link de recuperação) -->
+<section id="tela-nova-senha" class="tela-centro" hidden>
+  <form class="caixa" id="form-nova-senha">
+    <h1>Nova senha</h1>
+    <p>Escolha uma senha nova para sua conta.</p>
+    <label class="campo"><span>Nova senha</span><input type="password" id="nova-senha" autocomplete="new-password" minlength="6" required></label>
+    <div class="erro" id="nova-senha-erro"></div>
+    <button class="btn" type="submit">Salvar senha</button>
+  </form>
+</section>
+
+<!-- Entrar na casa -->
+<section id="tela-casa" class="tela-centro" hidden>
+  <form class="caixa" id="form-casa">
+    <h1>Entrar na casa</h1>
+    <p>Digite o código da casa para ver os lançamentos de vocês.</p>
+    <label class="campo"><span>Código</span><input id="casa-codigo" autocapitalize="characters" autocomplete="off" maxlength="12" required></label>
+    <div class="erro" id="casa-erro"></div>
+    <button class="btn" type="submit">Entrar</button>
+    <button class="btn sec" type="button" id="casa-sair">Sair da conta</button>
+  </form>
+</section>
+
+<!-- App -->
+<main id="tela-app" class="app" hidden>
+  <header class="topo">
+    <button class="icone" id="mes-ant" aria-label="Mês anterior">‹</button>
+    <div class="mes"><h2 id="mes-nome"></h2></div>
+    <button class="icone" id="mes-prox" aria-label="Próximo mês">›</button>
+    <button class="icone" id="abrir-ajustes" aria-label="Ajustes">⋯</button>
+  </header>
+
+  <div id="conteudo"><div class="carregando">Carregando…</div></div>
+</main>
+
+<button class="fab" id="fab" aria-label="Novo lançamento" hidden>+</button>
+
+<div class="fundo" id="fundo" hidden></div>
+
+<!-- Painel de lançamento -->
+<form class="painel" id="painel-lanc" hidden novalidate>
+  <div class="alca"></div>
+  <h3 id="lanc-titulo">Novo lançamento</h3>
+  <div class="seg" id="lanc-tipo">
+    <button type="button" data-tipo="despesa" class="ativo">Despesa</button>
+    <button type="button" data-tipo="receita">Receita</button>
+  </div>
+  <label class="campo valor-grande"><span>Valor (R$)</span><input id="lanc-valor" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>
+  <label class="campo"><span>Descrição</span><input id="lanc-desc" list="sugestoes" maxlength="120" autocomplete="off" placeholder="Ex.: Mercado Semana"></label>
+  <datalist id="sugestoes"></datalist>
+  <label class="campo"><span>Data</span><input type="date" id="lanc-data"></label>
+  <label class="toggle"><span id="lanc-pago-rot">Já foi pago</span><input type="checkbox" id="lanc-pago"></label>
+
+  <div id="bloco-repetir">
+    <label class="campo"><span>Repetir</span>
+      <select id="lanc-repetir">
+        <option value="nao">Não repetir</option>
+        <option value="mensal">Todo mês (conta fixa)</option>
+        <option value="parcelado">Parcelado</option>
+      </select>
+    </label>
+    <label class="campo" id="bloco-meses" hidden><span>Por quantos meses</span><input type="number" id="lanc-meses" min="2" max="60" value="12" inputmode="numeric"></label>
+    <div class="duas" id="bloco-parcelas" hidden>
+      <label class="campo"><span>Parcela atual</span><input type="number" id="lanc-parc" min="1" max="360" value="1" inputmode="numeric"></label>
+      <label class="campo"><span>Total de parcelas</span><input type="number" id="lanc-parcs" min="1" max="360" value="2" inputmode="numeric"></label>
+    </div>
+  </div>
+
+  <label class="toggle" id="bloco-serie" hidden><span>Mudar também os próximos da série</span><input type="checkbox" id="lanc-serie"></label>
+
+  <div class="erro" id="lanc-erro"></div>
+  <button class="btn" type="submit" id="lanc-salvar">Salvar</button>
+  <div class="acoes-extra" id="lanc-acoes" hidden>
+    <button class="btn sec" type="button" id="lanc-estender" hidden>Repetir mais 12 meses</button>
+    <button class="btn perigo" type="button" id="lanc-apagar">Apagar</button>
+    <button class="btn perigo" type="button" id="lanc-apagar-serie" hidden>Apagar este e os próximos</button>
+  </div>
+</form>
+
+<!-- Painel de ajustes -->
+<div class="painel" id="painel-ajustes" hidden>
+  <div class="alca"></div>
+  <h3>Ajustes</h3>
+  <div class="info-casa">
+    <div>Código da casa (para a outra pessoa entrar):</div>
+    <div class="codigo" id="ajustes-codigo">—</div>
+    <div style="margin-top:8px;color:var(--muted)" id="ajustes-email"></div>
+  </div>
+  <div class="acoes-extra">
+    <button class="btn sec" type="button" id="btn-instalar" hidden>Instalar na tela inicial</button>
+    <button class="btn sec" type="button" id="btn-exportar">Baixar planilha (CSV)</button>
+    <button class="btn sec" type="button" id="btn-sair">Sair da conta</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
