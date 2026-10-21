@@ -19,6 +19,7 @@ const estado = {
   filtro: "todos",
   editando: null,
   canal: null,
+  membros: new Map(), // user_id -> { nome, email }
 };
 
 // ---------- datas e números ----------
@@ -37,6 +38,8 @@ function somarMeses(s, n) {
 }
 function fimDoMes(mes) { const [a, m] = mes.split("-").map(Number); return iso(new Date(a, m, 0)); }
 function dataCurta(s) { return s.slice(8, 10) + "/" + s.slice(5, 7); }
+const fmtQuando = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+function quando(ts) { return fmtQuando.format(new Date(ts)).replace(",", " às"); }
 
 function lerValor(txt) {
   let s = String(txt).trim().replace(/[R$\s]/g, "");
@@ -112,10 +115,27 @@ async function abrirCasa() {
   estado.casa = data[0].casas;
   estado.mes = estado.mes || hoje().slice(0, 7);
   mostrarTela("tela-app");
+  await carregarMembros();
   await carregar();
   assinarMudancas();
   const diaHoje = $("dia-hoje");
   if (diaHoje) diaHoje.scrollIntoView({ block: "start" });
+}
+
+async function carregarMembros() {
+  let r = await sb.from("membros").select("user_id, nome, email").eq("casa_id", estado.casa.id);
+  // Banco ainda sem as colunas de nome (antes do 02_historico.sql).
+  if (r.error) r = await sb.from("membros").select("user_id").eq("casa_id", estado.casa.id);
+  estado.membros = new Map((r.data || []).map((m) => [m.user_id, m]));
+}
+
+function nomeDe(uid) {
+  if (!uid) return null;
+  const m = estado.membros.get(uid);
+  if (m?.nome) return m.nome;
+  const doEmail = (e) => { const s = (e || "").split("@")[0]; return s.charAt(0).toUpperCase() + s.slice(1); };
+  if (m?.email) return doEmail(m.email);
+  return uid === estado.sessao?.user?.id ? doEmail(estado.sessao.user.email) || "Você" : "Alguém";
 }
 
 async function carregar() {
@@ -233,6 +253,7 @@ function itemHtml(l, hj) {
   if (l.parcelas) tags.push(`<span class="tag">${l.parcela}/${l.parcelas}</span>`);
   if (l.recorrente) tags.push(`<span class="tag">fixa</span>`);
   if (atrasado) tags.push(`<span class="tag atraso">atrasado</span>`);
+  if (l.criado_por) tags.push(`<span class="tag">${esc(nomeDe(l.criado_por))}</span>`);
   const baixado = l.pago && l.data < hj;
   return `<div class="item ${l.pago ? "" : "previsto"} ${baixado ? "baixado" : ""}">
     <button class="check ${l.pago ? "ok" : ""} ${atrasado ? "atrasado" : ""}" data-check="${l.id}" aria-label="${l.pago ? "Tirar check" : "Marcar como pago"}">✓</button>
@@ -294,7 +315,7 @@ function abrirPainel(p) {
   requestAnimationFrame(() => { $("fundo").classList.add("aberto"); p.classList.add("aberto"); });
 }
 function fecharPaineis(semAnimar) {
-  for (const p of [$("painel-lanc"), $("painel-ajustes"), $("fundo")]) {
+  for (const p of [$("painel-lanc"), $("painel-ajustes"), $("painel-historico"), $("fundo")]) {
     p.classList.remove("aberto");
     if (semAnimar) p.hidden = true; else setTimeout(() => { if (!p.classList.contains("aberto")) p.hidden = true; }, 250);
   }
@@ -360,6 +381,8 @@ function abrirLanc(l) {
   $("lanc-acoes").hidden = !l;
   $("lanc-apagar-serie").hidden = !temSerie;
   $("lanc-estender").hidden = !(temSerie && l.recorrente);
+  $("lanc-hist").hidden = !l;
+  if (l) carregarHistoricoDe(l);
   abrirPainel($("painel-lanc"));
   if (!l) setTimeout(() => $("lanc-valor").focus(), 260);
 }
@@ -452,6 +475,92 @@ $("lanc-estender").onclick = async () => {
   fecharPaineis(); toast(`Repetido até ${dataCurta(linhas[11].data)}/${linhas[11].data.slice(2, 4)}.`); carregar();
 };
 
+// ---------- histórico ----------
+
+const rotTipo = (t) => (t === "receita" ? "Receita" : "Despesa");
+
+function mudancas(a, d) {
+  const out = [];
+  if (a.descricao !== d.descricao) out.push(`descrição: ${esc(a.descricao)} → ${esc(d.descricao)}`);
+  if (Number(a.valor) !== Number(d.valor)) out.push(`valor: ${brl.format(Number(a.valor))} → ${brl.format(Number(d.valor))}`);
+  if (a.data !== d.data) out.push(`data: ${dataCurta(a.data)} → ${dataCurta(d.data)}`);
+  if (a.tipo !== d.tipo) out.push(`tipo: ${rotTipo(a.tipo)} → ${rotTipo(d.tipo)}`);
+  if (a.pago !== d.pago) {
+    const feito = d.tipo === "receita" ? "recebido" : "pago";
+    out.push(d.pago ? `marcou como ${feito}` : "tirou o check");
+  }
+  if (a.parcela !== d.parcela || a.parcelas !== d.parcelas) out.push(`parcela: ${a.parcela ?? "—"}/${a.parcelas ?? "—"} → ${d.parcela ?? "—"}/${d.parcelas ?? "—"}`);
+  return out;
+}
+
+function eventoHtml(h, comDescricao) {
+  const quem = esc(nomeDe(h.user_id) || "Alguém");
+  const l = h.depois || h.antes || {};
+  const sobre = comDescricao ? ` "${esc(l.descricao || "")}"` : "";
+  let txt, lista = [];
+  if (h.acao === "criou") {
+    txt = `${quem} lançou${sobre}`;
+    lista = [`${rotTipo(l.tipo)} de ${brl.format(Number(l.valor))} em ${dataCurta(l.data)}`];
+    if (h.qtd > 1) lista = [`${h.qtd} lançamentos de ${brl.format(Number(l.valor))}, de ${dataCurta(h.primeira)} a ${dataCurta(h.ultima)}/${h.ultima.slice(2, 4)}`];
+  } else if (h.acao === "alterou") {
+    txt = `${quem} alterou${sobre}`;
+    lista = mudancas(h.antes, h.depois);
+    if (comDescricao && h.antes.descricao !== h.depois.descricao) txt = `${quem} alterou "${esc(h.antes.descricao)}"`;
+  } else {
+    txt = `${quem} apagou${sobre}`;
+    lista = h.qtd > 1
+      ? [`${h.qtd} lançamentos, de ${dataCurta(h.primeira)} a ${dataCurta(h.ultima)}/${h.ultima.slice(2, 4)}`]
+      : [`${rotTipo(l.tipo)} de ${brl.format(Number(l.valor))} em ${dataCurta(l.data)}`];
+  }
+  return `<div class="ev ${h.acao}">
+    <div><span class="quem">${txt}</span> <span class="quando">· ${quando(h.quando)}</span></div>
+    ${lista.length ? `<ul>${lista.map((x) => `<li>${x}</li>`).join("")}</ul>` : ""}
+  </div>`;
+}
+
+// Junta os vários registros de uma série criada ou apagada de uma vez (ex.: 12 meses de aluguel).
+function agrupar(lista) {
+  const out = [];
+  for (const h of lista) {
+    const p = out[out.length - 1];
+    const l = h.depois || h.antes;
+    const pl = p && (p.depois || p.antes);
+    if (p && h.acao !== "alterou" && p.acao === h.acao && p.user_id === h.user_id && l.grupo && pl.grupo === l.grupo &&
+        Math.abs(new Date(p.quando) - new Date(h.quando)) < 10000) {
+      p.qtd += 1;
+      if (l.data < p.primeira) p.primeira = l.data;
+      if (l.data > p.ultima) p.ultima = l.data;
+      continue;
+    }
+    out.push({ ...h, qtd: 1, primeira: l.data, ultima: l.data });
+  }
+  return out;
+}
+
+async function carregarHistoricoDe(l) {
+  const alvo = $("lanc-hist");
+  const origem = l.criado_por
+    ? `Lançado por <b>${esc(nomeDe(l.criado_por))}</b> em ${quando(l.criado_em)}.`
+    : "Veio da planilha.";
+  alvo.innerHTML = `<h4>Histórico</h4><div class="ev">${origem}</div>`;
+  const { data, error } = await sb.from("historico").select("*").eq("lancamento_id", l.id).order("quando", { ascending: false }).limit(50);
+  if (estado.editando?.id !== l.id) return;
+  if (error) return;
+  const alteracoes = data.filter((h) => h.acao === "alterou");
+  alvo.innerHTML = `<h4>Histórico</h4>${alteracoes.map((h) => eventoHtml(h, false)).join("")}<div class="ev">${origem}</div>`;
+}
+
+$("btn-historico").onclick = async () => {
+  abrirPainel($("painel-historico"));
+  const alvo = $("hist-geral");
+  alvo.innerHTML = '<div class="carregando">Carregando…</div>';
+  const { data, error } = await sb.from("historico").select("*").eq("casa_id", estado.casa.id).order("quando", { ascending: false }).limit(200);
+  if (error) { alvo.innerHTML = `<div class="vazio">Histórico indisponível.<br>${esc(msgErro(error))}</div>`; return; }
+  alvo.innerHTML = data.length
+    ? agrupar(data).map((h) => eventoHtml(h, true)).join("")
+    : '<div class="vazio">Nenhuma alteração ainda.<br>O que vier da planilha não aparece aqui; daqui para frente, tudo fica registrado.</div>';
+};
+
 // ---------- ajustes ----------
 
 let pedidoInstalar = null;
@@ -482,7 +591,17 @@ aplicarTema(temaAtual());
 $("abrir-ajustes").onclick = () => {
   $("ajustes-codigo").textContent = estado.casa?.codigo || "—";
   $("ajustes-email").textContent = "Conectado como " + (estado.sessao?.user?.email || "");
+  $("ajustes-nome").value = estado.membros.get(estado.sessao?.user?.id)?.nome || "";
   abrirPainel($("painel-ajustes"));
+};
+
+$("ajustes-salvar-nome").onclick = async () => {
+  const nome = $("ajustes-nome").value.trim().slice(0, 40);
+  const { error } = await sb.rpc("definir_meu_nome", { p_nome: nome });
+  if (error) return toast(/definir_meu_nome/.test(error.message) ? "Falta atualizar o banco (02_historico.sql)." : msgErro(error));
+  await carregarMembros();
+  render();
+  toast("Nome salvo.");
 };
 $("btn-sair").onclick = () => sb.auth.signOut();
 $("casa-sair").onclick = () => sb.auth.signOut();

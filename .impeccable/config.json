@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "C:/Users/jonatas/financas-casa/index.html"
+        ],
+        "createdAt": "2026-10-21T13:16:14.986Z",
+        "reason": "user confirmed: 'tema ta otimo' (21/10/2026), asked only to add dark option"
+      }
+    ]
+  }
+}

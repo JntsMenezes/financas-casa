@@ -173,6 +173,17 @@
   .toggle { display: flex; align-items: center; justify-content: space-between; padding: 10px 0 14px; font-size: 15px; }
   .toggle input { width: 22px; height: 22px; accent-color: var(--verde); }
   .acoes-extra { display: grid; gap: 8px; margin-top: 10px; }
+  .linha-nome { display: flex; gap: 8px; margin: -8px 0 16px; }
+  .linha-nome input { flex: 1; min-width: 0; font-size: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--campo); outline: none; }
+  .linha-nome .btn { width: auto; padding: 12px 18px; }
+  .hist { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+  .hist h4 { margin: 0 0 8px; font-size: 14px; color: var(--muted); font-weight: 600; }
+  .ev { padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .ev:last-child { border-bottom: 0; }
+  .ev .quem { font-weight: 600; }
+  .ev .quando { color: var(--muted); font-size: 12.5px; }
+  .ev ul { margin: 4px 0 0; padding-left: 18px; color: var(--muted); }
+  .ev.apagou .quem { color: var(--vermelho); }
   .info-casa { background: var(--bg); border-radius: 12px; padding: 14px; margin-bottom: 14px; font-size: 14px; }
   .codigo { font-size: 24px; font-weight: 700; letter-spacing: .12em; margin-top: 4px; }
 
@@ -280,7 +291,15 @@
     <button class="btn perigo" type="button" id="lanc-apagar">Apagar</button>
     <button class="btn perigo" type="button" id="lanc-apagar-serie" hidden>Apagar este e os próximos</button>
   </div>
+  <section class="hist" id="lanc-hist" hidden></section>
 </form>
+
+<!-- Painel de histórico geral -->
+<div class="painel" id="painel-historico" hidden>
+  <div class="alca"></div>
+  <h3>Histórico</h3>
+  <div id="hist-geral"><div class="carregando">Carregando…</div></div>
+</div>
 
 <!-- Painel de ajustes -->
 <div class="painel" id="painel-ajustes" hidden>
@@ -291,6 +310,11 @@
     <div class="codigo" id="ajustes-codigo">—</div>
     <div style="margin-top:8px;color:var(--muted)" id="ajustes-email"></div>
   </div>
+  <div class="campo"><span>Seu nome (aparece no histórico)</span></div>
+  <div class="linha-nome">
+    <input id="ajustes-nome" maxlength="40" autocomplete="given-name" placeholder="Ex.: Jonatas">
+    <button class="btn" type="button" id="ajustes-salvar-nome">Salvar</button>
+  </div>
   <div class="campo"><span>Tema</span></div>
   <div class="seg tres" id="seg-tema">
     <button type="button" data-tema="auto">Automático</button>
@@ -298,6 +322,7 @@
     <button type="button" data-tema="dark">Escuro</button>
   </div>
   <div class="acoes-extra">
+    <button class="btn sec" type="button" id="btn-historico">Ver histórico de alterações</button>
     <button class="btn sec" type="button" id="btn-instalar" hidden>Instalar na tela inicial</button>
     <button class="btn sec" type="button" id="btn-exportar">Baixar planilha (CSV)</button>
     <button class="btn sec" type="button" id="btn-sair">Sair da conta</button>
