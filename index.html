@@ -96,6 +96,7 @@
   .item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--line); }
   .item:first-child { border-top: 0; }
   .item.previsto .desc, .item.previsto .valor { opacity: .62; }
+  .item.baixado .desc, .item.baixado .valor { text-decoration: line-through; text-decoration-thickness: 1.5px; color: var(--muted); }
   .check {
     flex: none; width: 28px; height: 28px; border-radius: 50%; border: 2px solid #c9c7be;
     background: transparent; display: grid; place-items: center; font-size: 15px; color: transparent; padding: 0;

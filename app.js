@@ -233,7 +233,8 @@ function itemHtml(l, hj) {
   if (l.parcelas) tags.push(`<span class="tag">${l.parcela}/${l.parcelas}</span>`);
   if (l.recorrente) tags.push(`<span class="tag">fixa</span>`);
   if (atrasado) tags.push(`<span class="tag atraso">atrasado</span>`);
-  return `<div class="item ${l.pago ? "" : "previsto"}">
+  const baixado = l.pago && l.data < hj;
+  return `<div class="item ${l.pago ? "" : "previsto"} ${baixado ? "baixado" : ""}">
     <button class="check ${l.pago ? "ok" : ""} ${atrasado ? "atrasado" : ""}" data-check="${l.id}" aria-label="${l.pago ? "Tirar check" : "Marcar como pago"}">✓</button>
     <button class="corpo" data-editar="${l.id}">
       <div class="txt">
