@@ -464,6 +464,21 @@ $("btn-instalar").onclick = async () => {
   $("btn-instalar").hidden = true;
 };
 
+function temaAtual() {
+  try { return localStorage.getItem("tema") || "auto"; } catch (e) { return "auto"; }
+}
+function aplicarTema(t) {
+  if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+  else delete document.documentElement.dataset.theme;
+  try { if (t === "auto") localStorage.removeItem("tema"); else localStorage.setItem("tema", t); } catch (e) {}
+  for (const b of $("seg-tema").children) b.classList.toggle("ativo", b.dataset.tema === t);
+  const escuro = t === "dark" || (t === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.querySelector('meta[name="theme-color"]').content = escuro ? "#151513" : "#f5f4ef";
+}
+$("seg-tema").onclick = (e) => { const b = e.target.closest("[data-tema]"); if (b) aplicarTema(b.dataset.tema); };
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => aplicarTema(temaAtual()));
+aplicarTema(temaAtual());
+
 $("abrir-ajustes").onclick = () => {
   $("ajustes-codigo").textContent = estado.casa?.codigo || "—";
   $("ajustes-email").textContent = "Conectado como " + (estado.sessao?.user?.email || "");

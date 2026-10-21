@@ -9,6 +9,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Finanças">
 <title>Finanças da Casa</title>
+<script>
+  // Aplica o tema antes de desenhar a tela, para não piscar claro.
+  try { const t = localStorage.getItem("tema"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -28,6 +32,30 @@
     --acento: #1f4e79;
     --raio: 14px;
     --sombra: 0 1px 2px rgba(0,0,0,.05), 0 4px 14px rgba(0,0,0,.05);
+    --campo: #ffffff;
+    --check-borda: #c9c7be;
+    --aviso-ruim: #8f2119;
+    --aviso-atencao: #7a4500;
+    --foco: rgba(31,78,121,.12);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151513; --card: #201f1d; --ink: #ecebe5; --muted: #a3a199; --line: #35342f;
+      --verde: #45c98a; --verde-bg: #16342a; --vermelho: #ff8072; --vermelho-bg: #3b1d1a;
+      --ambar: #f0b35a; --ambar-bg: #3a2a12; --acento: #86b6e6;
+      --sombra: 0 1px 2px rgba(0,0,0,.4); --campo: #1a1a18; --check-borda: #5a5952;
+      --aviso-ruim: #ffb4aa; --aviso-atencao: #f5c98a; --foco: rgba(134,182,230,.2);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151513; --card: #201f1d; --ink: #ecebe5; --muted: #a3a199; --line: #35342f;
+    --verde: #45c98a; --verde-bg: #16342a; --vermelho: #ff8072; --vermelho-bg: #3b1d1a;
+    --ambar: #f0b35a; --ambar-bg: #3a2a12; --acento: #86b6e6;
+    --sombra: 0 1px 2px rgba(0,0,0,.4); --campo: #1a1a18; --check-borda: #5a5952;
+    --aviso-ruim: #ffb4aa; --aviso-atencao: #f5c98a; --foco: rgba(134,182,230,.2);
+    color-scheme: dark;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--ink); }
@@ -51,10 +79,10 @@
   .campo span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
   .campo input, .campo select {
     width: 100%; font-size: 16px; padding: 12px 14px; border: 1px solid var(--line);
-    border-radius: 10px; background: #fff; outline: none;
+    border-radius: 10px; background: var(--campo); outline: none;
   }
-  .campo input:focus, .campo select:focus { border-color: var(--acento); box-shadow: 0 0 0 3px rgba(31,78,121,.12); }
-  .btn { display: block; width: 100%; padding: 13px; border: 0; border-radius: 12px; font-weight: 600; background: var(--ink); color: #fff; }
+  .campo input:focus, .campo select:focus { border-color: var(--acento); box-shadow: 0 0 0 3px var(--foco); }
+  .btn { display: block; width: 100%; padding: 13px; border: 0; border-radius: 12px; font-weight: 600; background: var(--ink); color: var(--bg); }
   .btn:active { transform: scale(.98); }
   .btn.sec { background: transparent; color: var(--ink); border: 1px solid var(--line); margin-top: 10px; }
   .btn.perigo { background: var(--vermelho-bg); color: var(--vermelho); }
@@ -80,13 +108,13 @@
   .neg { color: var(--vermelho); }
   .avisos { display: grid; gap: 8px; margin-bottom: 14px; }
   .aviso { border-radius: 12px; padding: 10px 12px; font-size: 14px; }
-  .aviso.ruim { background: var(--vermelho-bg); color: #8f2119; }
-  .aviso.atencao { background: var(--ambar-bg); color: #7a4500; }
+  .aviso.ruim { background: var(--vermelho-bg); color: var(--aviso-ruim); }
+  .aviso.atencao { background: var(--ambar-bg); color: var(--aviso-atencao); }
 
   /* Filtros */
   .filtros { display: flex; gap: 8px; margin: 4px -16px 6px; padding: 0 16px; overflow-x: auto; scrollbar-width: none; }
   .chip { flex: none; white-space: nowrap; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 14px; font-size: 14px; color: var(--muted); }
-  .chip.ativo { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .chip.ativo { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 
   /* Lista */
   .dia { margin-top: 14px; scroll-margin-top: 70px; }
@@ -98,7 +126,7 @@
   .item.previsto .desc, .item.previsto .valor { opacity: .62; }
   .item.baixado .desc, .item.baixado .valor { text-decoration: line-through; text-decoration-thickness: 1.5px; color: var(--muted); }
   .check {
-    flex: none; width: 28px; height: 28px; border-radius: 50%; border: 2px solid #c9c7be;
+    flex: none; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--check-borda);
     background: transparent; display: grid; place-items: center; font-size: 15px; color: transparent; padding: 0;
   }
   .check.ok { background: var(--verde); border-color: var(--verde); color: #fff; }
@@ -118,7 +146,7 @@
   /* Botão de adicionar */
   .fab {
     position: fixed; right: max(16px, calc(50% - 264px)); bottom: calc(20px + env(safe-area-inset-bottom));
-    width: 60px; height: 60px; border-radius: 50%; border: 0; background: var(--ink); color: #fff;
+    width: 60px; height: 60px; border-radius: 50%; border: 0; background: var(--ink); color: var(--bg);
     font-size: 30px; line-height: 1; box-shadow: 0 6px 18px rgba(0,0,0,.22); z-index: 10;
   }
   .fab:active { transform: scale(.95); }
@@ -136,8 +164,10 @@
   .painel h3 { margin: 0 0 14px; font-size: 18px; }
   .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--bg); border-radius: 12px; padding: 4px; margin-bottom: 14px; }
   .seg button { border: 0; background: transparent; padding: 10px; border-radius: 9px; font-weight: 600; color: var(--muted); }
-  .seg button.ativo[data-tipo="despesa"] { background: #fff; color: var(--vermelho); box-shadow: var(--sombra); }
-  .seg button.ativo[data-tipo="receita"] { background: #fff; color: var(--verde); box-shadow: var(--sombra); }
+  .seg button.ativo[data-tipo="despesa"] { background: var(--card); color: var(--vermelho); box-shadow: var(--sombra); }
+  .seg button.ativo[data-tipo="receita"] { background: var(--card); color: var(--verde); box-shadow: var(--sombra); }
+  .seg.tres { grid-template-columns: repeat(3, 1fr); }
+  .seg button.ativo[data-tema] { background: var(--card); color: var(--ink); box-shadow: var(--sombra); }
   .valor-grande input { font-size: 28px; font-weight: 700; padding: 10px 14px; }
   .duas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .toggle { display: flex; align-items: center; justify-content: space-between; padding: 10px 0 14px; font-size: 15px; }
@@ -148,7 +178,7 @@
 
   .toast {
     position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(20px);
-    background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 40;
+    background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 40;
     opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; max-width: calc(100% - 32px);
   }
   .toast.visivel { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -260,6 +290,12 @@
     <div>Código da casa (para a outra pessoa entrar):</div>
     <div class="codigo" id="ajustes-codigo">—</div>
     <div style="margin-top:8px;color:var(--muted)" id="ajustes-email"></div>
+  </div>
+  <div class="campo"><span>Tema</span></div>
+  <div class="seg tres" id="seg-tema">
+    <button type="button" data-tema="auto">Automático</button>
+    <button type="button" data-tema="light">Claro</button>
+    <button type="button" data-tema="dark">Escuro</button>
   </div>
   <div class="acoes-extra">
     <button class="btn sec" type="button" id="btn-instalar" hidden>Instalar na tela inicial</button>
