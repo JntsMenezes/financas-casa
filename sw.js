@@ -1,5 +1,5 @@
 // Guarda a casca do app para abrir rápido e sem internet. Os dados vêm sempre do Supabase.
-const CACHE = "financas-v8";
+const CACHE = "financas-v9";
 const CASCA = [
   "./", "index.html", "app.js", "config.js", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "fonts/inter-latin-wght.woff2",
@@ -26,4 +26,22 @@ self.addEventListener("fetch", (e) => {
       .then((r) => { const copia = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copia)); return r; })
       .catch(() => caches.match(e.request, { ignoreSearch: true }))
   );
+});
+
+// Lembretes de contas enviados pela função "lembretes" do Supabase.
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : "" }; }
+  e.waitUntil(self.registration.showNotification(d.title || "Finanças da Casa", {
+    body: d.body || "", icon: "icons/icon-192.png", badge: "icons/icon-192.png", tag: "lembrete-contas", renotify: true, data: { url: d.url || "./" },
+  }));
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const alvo = e.notification.data?.url || "./";
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((abertas) => {
+    const aberta = abertas.find((c) => c.url.startsWith(self.registration.scope));
+    return aberta ? aberta.focus() : self.clients.openWindow(alvo);
+  }));
 });

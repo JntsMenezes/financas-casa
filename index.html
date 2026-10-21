@@ -355,6 +355,11 @@
   .limite input { width: 128px; font-size: 16px; text-align: right; padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--campo); outline: none; }
   .limite input:focus { border-color: var(--primaria); box-shadow: 0 0 0 3px var(--primaria-bg); }
 
+  .lembretes { display: flex; align-items: center; gap: 12px; background: var(--bg); border-radius: 14px; padding: 12px 14px; margin-bottom: 18px; }
+  .lembretes > div { flex: 1; min-width: 0; }
+  .lembretes-tit { font-weight: 600; font-size: 15px; }
+  .lembretes small { color: var(--muted); font-size: 13px; display: block; margin-top: 2px; }
+
   /* Interruptor "Sempre" */
   .interruptor { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11.5px; color: var(--muted); min-width: 52px; min-height: 44px; justify-content: center; }
   .interruptor input { appearance: none; -webkit-appearance: none; width: 40px; height: 24px; border-radius: 12px; background: var(--line); position: relative; margin: 0; transition: background .2s var(--sai); cursor: pointer; }
@@ -515,6 +520,13 @@
   <div class="linha-nome">
     <input id="ajustes-nome" maxlength="40" autocomplete="given-name" placeholder="Ex.: Jonatas">
     <button class="btn" type="button" id="ajustes-salvar-nome">Salvar</button>
+  </div>
+  <div class="lembretes" id="bloco-lembretes" hidden>
+    <div>
+      <div class="lembretes-tit">Lembretes de contas</div>
+      <small id="lembretes-txt">Todo dia às 8h, avisa neste celular o que vence hoje e amanhã sem check.</small>
+    </div>
+    <label class="interruptor"><input type="checkbox" id="lembretes-ligar" aria-label="Lembretes de contas"><span id="lembretes-estado">Desligado</span></label>
   </div>
   <div class="campo"><span>Tema</span></div>
   <div class="seg tres" id="seg-tema">

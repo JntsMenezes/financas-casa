@@ -1508,9 +1508,69 @@ $("abrir-ajustes").onclick = () => {
   $("ajustes-email").textContent = "Conectado como " + (estado.sessao?.user?.email || "");
   $("ajustes-nome").value = estado.membros.get(estado.sessao?.user?.id)?.nome || "";
   $("btn-limites").hidden = !estado.limites;
+  mostrarLembretes();
   aplicarTema(temaAtual());
   abrirPainel($("painel-ajustes"));
 };
+
+// ---------- lembretes no celular ----------
+
+const suportaPush = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window && !!cfg.vapidPublica;
+const ehIphone = /iPhone|iPad|iPod/.test(navigator.userAgent);
+const instalado = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+
+function chaveVapid(b64) {
+  const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+  const bin = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+}
+
+async function mostrarLembretes() {
+  const bloco = $("bloco-lembretes"), chave = $("lembretes-ligar"), txt = $("lembretes-txt");
+  if (!suportaPush && !(ehIphone && !instalado)) { bloco.hidden = true; return; }
+  bloco.hidden = false;
+  if (ehIphone && !instalado) {
+    chave.disabled = true;
+    txt.textContent = "No iPhone, primeiro adicione o app à tela inicial (Compartilhar → Adicionar à Tela de Início) e abra por lá.";
+    return;
+  }
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  chave.checked = !!sub && Notification.permission === "granted";
+  chave.disabled = Notification.permission === "denied";
+  $("lembretes-estado").textContent = chave.checked ? "Ligado" : "Desligado";
+  if (Notification.permission === "denied") txt.textContent = "As notificações estão bloqueadas para este site. Libere nas configurações do navegador e volte aqui.";
+}
+
+$("lembretes-ligar").addEventListener("change", async (e) => {
+  const chave = e.target;
+  chave.disabled = true;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    if (chave.checked) {
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") throw new Error("Sem permissão para notificar. Libere as notificações para este site.");
+      const sub = (await reg.pushManager.getSubscription()) ||
+        (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chaveVapid(cfg.vapidPublica) }));
+      const j = sub.toJSON();
+      const { error } = await sb.from("push_inscricoes").upsert({ endpoint: j.endpoint, casa_id: estado.casa.id, p256dh: j.keys.p256dh, auth: j.keys.auth });
+      if (error) throw (/push_inscricoes/.test(error.message) ? new Error("Falta atualizar o banco (05_lembretes.sql).") : error);
+      avisar("Lembretes ligados neste celular.");
+    } else {
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await sb.from("push_inscricoes").delete().eq("endpoint", sub.endpoint);
+        await sub.unsubscribe();
+      }
+      avisar("Lembretes desligados neste celular.");
+    }
+  } catch (err) {
+    chave.checked = !chave.checked;
+    avisar(msgErro(err));
+  } finally {
+    await mostrarLembretes();
+  }
+});
 
 $("btn-convidar").onclick = async () => {
   const link = location.origin + location.pathname;
@@ -1529,7 +1589,14 @@ $("ajustes-salvar-nome").onclick = async () => {
   render();
   avisar("Nome salvo.");
 };
-$("btn-sair").onclick = () => sb.auth.signOut();
+$("btn-sair").onclick = async () => {
+  // Quem sair deste celular para de receber os lembretes nele.
+  try {
+    const sub = suportaPush && (await (await navigator.serviceWorker.ready).pushManager.getSubscription());
+    if (sub) { await sb.from("push_inscricoes").delete().eq("endpoint", sub.endpoint); await sub.unsubscribe(); }
+  } catch (e) { /* sem internet ou sem suporte: segue saindo */ }
+  sb.auth.signOut();
+};
 $("casa-sair").onclick = () => sb.auth.signOut();
 
 $("btn-exportar").onclick = () => {
