@@ -1,3 +1,5 @@
 *.xlsm
 *.xlsx
 importar*.sql
+.impeccable/live/
+.impeccable/critique/
