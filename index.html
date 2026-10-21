@@ -355,6 +355,59 @@
   .limite input { width: 128px; font-size: 16px; text-align: right; padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--campo); outline: none; }
   .limite input:focus { border-color: var(--primaria); box-shadow: 0 0 0 3px var(--primaria-bg); }
 
+  /* Caixinhas */
+  .linha-resumo small { color: var(--muted); font-weight: 500; }
+  .cat-ic.cx { background: var(--verde-bg); color: var(--verde); }
+  .tag.guardar { color: var(--verde); background: var(--verde-bg); }
+  .cx-total { background: var(--bg); border-radius: 16px; padding: 14px 16px; margin-bottom: 14px; }
+  .cx-total > span { font-size: 13px; color: var(--muted); }
+  .cx-total .saldo-valor { font-size: 34px; margin-top: 2px; }
+  .cx-total small { display: block; color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .cx { border: 1px solid var(--line); border-radius: 16px; padding: 6px 14px 14px; margin-bottom: 10px; display: grid; gap: 8px; }
+  .cx-cab { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; background: transparent; padding: 8px 0 2px; text-align: left; min-height: 52px; }
+  .cx-txt { flex: 1; min-width: 0; display: grid; }
+  .cx-nome { font-size: 15.5px; font-weight: 600; }
+  .cx-txt small { color: var(--muted); font-size: 12.5px; line-height: 1.35; margin-top: 1px; }
+  .cx-txt small.perto { color: var(--aviso-atencao); }
+  .cx-txt small.bom { color: var(--verde); }
+  .cx-cab > b { font-size: 16px; font-weight: 650; white-space: nowrap; }
+  .cx .nota { margin: 0; }
+  .cx .duas .btn { min-height: 44px; }
+  .cx-sugeridas { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 16px; }
+  .cx-chip { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px 0 11px; border-radius: 999px; background: var(--verde-bg); color: var(--verde); font-size: 14px; font-weight: 500; }
+  .cx-chip .ic { width: 17px; height: 17px; }
+  .cat.so-icone { padding: 0; width: 44px; justify-content: center; }
+  .cat.so-icone .ic { width: 20px; height: 20px; }
+  .previa-caixa { display: grid; gap: 4px; margin: -4px 0 14px; }
+  .desc.cx-ano { white-space: normal; display: grid; gap: 1px; }
+  .previa .link { padding: 0; min-height: 0; font-size: inherit; font-weight: 600; }
+
+  /* Visão do ano */
+  .ano-nav { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; margin: -4px -6px 10px; }
+  .ano-nav h2 { margin: 0; text-align: center; }
+  .ano-nav .icone:disabled { opacity: .3; }
+  .mes-linha { display: grid; gap: 6px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .mes-linha:last-of-type { border-bottom: 0; }
+  .mes-linha .barra-topo span:first-child::first-letter { text-transform: uppercase; }
+  .mes-linha small { color: var(--muted); font-size: 12px; font-weight: 500; }
+  .mes-linha.futuro .trilho span { opacity: .55; }
+  .trilho.pilha { overflow: hidden; }
+  .trilho.pilha span { position: absolute; top: 0; bottom: 0; left: 0; }
+  .seg-gasto { background: var(--primaria); }
+  .seg-guardado { background: var(--verde); }
+  .legenda-pilha { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+  .legenda-pilha span { display: inline-flex; align-items: center; gap: 6px; }
+  .legenda-pilha i { width: 10px; height: 10px; border-radius: 3px; background: var(--bg); border: 1px solid var(--line); }
+  .legenda-pilha i.seg-gasto { background: var(--primaria); border-color: transparent; }
+  .legenda-pilha i.seg-guardado { background: var(--verde); border-color: transparent; }
+  .insight { border-left: 3px solid var(--line); background: var(--bg); border-radius: 4px 14px 14px 4px; padding: 10px 14px; margin-bottom: 8px; }
+  .insight p { margin: 0; font-size: 14.5px; line-height: 1.45; }
+  .insight p + p { margin-top: 4px; color: var(--muted); }
+  .insight.bom { border-left-color: var(--verde); }
+  .insight.atencao { border-left-color: var(--ambar); }
+  .insight.ruim { border-left-color: var(--vermelho); }
+  .insight.info { border-left-color: var(--primaria); }
+
   .lembretes { display: flex; align-items: center; gap: 12px; background: var(--bg); border-radius: 14px; padding: 12px 14px; margin-bottom: 18px; }
   .lembretes > div { flex: 1; min-width: 0; }
   .lembretes-tit { font-weight: 600; font-size: 15px; }
@@ -469,7 +522,7 @@
   <label class="campo valor-grande"><span>Valor (R$)</span><input id="lanc-valor" class="num" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>
   <label class="campo"><span>Descrição</span><input id="lanc-desc" list="sugestoes" maxlength="120" autocomplete="off" placeholder="Ex.: Mercado Semana"></label>
   <datalist id="sugestoes"></datalist>
-  <div class="campo"><span>Categoria</span></div>
+  <div class="campo" id="lanc-cats-rot"><span>Categoria</span></div>
   <div class="cats" id="lanc-cats" role="radiogroup" aria-label="Categoria"></div>
   <label class="campo"><span>Data</span><input type="date" id="lanc-data"></label>
   <label class="toggle"><span id="lanc-pago-rot">Já foi pago</span><input type="checkbox" id="lanc-pago"></label>
@@ -572,6 +625,62 @@
   <h2>Limites por mês</h2>
   <p class="nota" style="margin-top:-8px">Quanto vocês querem gastar por mês em cada categoria. Deixe vazio para não ter limite. O app avisa quando chegar a 85%.</p>
   <div id="lista-limites"></div>
+</div>
+
+<!-- Caixinhas -->
+<div class="painel" id="painel-caixinhas" hidden>
+  <div class="alca" aria-hidden="true"></div>
+  <h2>Caixinhas</h2>
+  <div id="lista-caixinhas"></div>
+</div>
+
+<!-- Criar ou editar caixinha -->
+<form class="painel" id="painel-caixa" hidden novalidate>
+  <div class="alca" aria-hidden="true"></div>
+  <h2 id="caixa-tit">Nova caixinha</h2>
+  <label class="campo"><span>Nome</span><input id="caixa-nome" maxlength="40" autocomplete="off" placeholder="Ex.: Gael"></label>
+  <div class="campo"><span>Ícone</span></div>
+  <div class="cats" id="caixa-icones" role="radiogroup" aria-label="Ícone"></div>
+  <div class="duas">
+    <label class="campo"><span>Objetivo (R$, opcional)</span><input id="caixa-obj" class="num" inputmode="decimal" placeholder="sem objetivo" autocomplete="off"></label>
+    <label class="campo"><span>Até quando (opcional)</span><input type="month" id="caixa-prazo"></label>
+  </div>
+  <p class="previa" id="caixa-sug" hidden></p>
+  <div class="duas">
+    <label class="campo"><span>Guardar todo mês (R$)</span><input id="caixa-mensal" class="num" inputmode="decimal" placeholder="nada" autocomplete="off"></label>
+    <label class="campo"><span>No dia</span><input type="number" id="caixa-dia" min="1" max="28" value="5" inputmode="numeric"></label>
+  </div>
+  <div class="previa previa-caixa" id="caixa-previa" hidden></div>
+  <label class="campo"><span>Saldo no banco hoje (opcional, com rendimento)</span><input id="caixa-real" class="num" inputmode="decimal" autocomplete="off"></label>
+  <p class="nota" style="margin-top:-6px">Se o dinheiro rende num CDB, poupança ou Tesouro, informe o saldo que aparece lá. O app mostra quanto rendeu.</p>
+  <div class="erro" id="caixa-erro" role="alert"></div>
+  <button class="btn" type="submit" id="caixa-salvar">Salvar</button>
+  <div class="acoes-extra" id="caixa-acoes" hidden>
+    <button class="btn texto perigo" type="button" id="caixa-apagar">Apagar caixinha</button>
+  </div>
+</form>
+
+<!-- Guardar ou resgatar -->
+<form class="painel" id="painel-mov" hidden novalidate>
+  <div class="alca" aria-hidden="true"></div>
+  <h2 id="mov-tit">Guardar</h2>
+  <label class="campo valor-grande"><span>Valor (R$)</span><input id="mov-valor" class="num" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>
+  <label class="campo"><span>Data</span><input type="date" id="mov-data"></label>
+  <label class="toggle"><span id="mov-feito-rot">Já saiu da conta</span><input type="checkbox" id="mov-feito"></label>
+  <p class="nota" id="mov-nota"></p>
+  <div class="erro" id="mov-erro" role="alert"></div>
+  <button class="btn" type="submit" id="mov-salvar">Salvar</button>
+</form>
+
+<!-- Visão do ano -->
+<div class="painel" id="painel-ano" hidden>
+  <div class="alca" aria-hidden="true"></div>
+  <div class="ano-nav">
+    <button class="icone" type="button" id="ano-ant" data-ano-passo="-1" aria-label="Ano anterior"><svg class="ic" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <h2 id="ano-tit">Visão do ano</h2>
+    <button class="icone" type="button" id="ano-prox" data-ano-passo="1" aria-label="Próximo ano"><svg class="ic" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+  </div>
+  <div id="ano-corpo"></div>
 </div>
 
 <!-- Busca -->

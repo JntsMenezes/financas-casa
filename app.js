@@ -81,6 +81,10 @@ function adivinharCategoria(descricao, tipo) {
   return "outros";
 }
 const categoriaDe = (l) => (l.categoria && CATS[l.tipo].some((c) => c[0] === l.categoria) ? l.categoria : adivinharCategoria(l.descricao, l.tipo));
+// Guardar e resgatar mexem no saldo da conta, mas não são gasto nem renda.
+const ehCaixinha = (l) => !!l.caixinha_id;
+const iconeDe = (l) => (l.caixinha_id ? caixaIcone(caixinhaDe(l.caixinha_id)?.icone) : catInfo(l.tipo, categoriaDe(l)).icone);
+const nomeCatDe = (l) => (l.caixinha_id ? `Caixinha ${caixinhaDe(l.caixinha_id)?.nome || ""}`.trim() : catInfo(l.tipo, categoriaDe(l)).nome);
 
 const estado = {
   sessao: null,
@@ -98,6 +102,7 @@ const estado = {
   temCategoria: false,   // banco já tem a coluna categoria (03_categorias_series.sql)
   seriesDb: null,        // grupo -> linha da tabela series; null se a tabela não existe
   limites: null,         // categoria de despesa -> limite mensal; null se a tabela não existe
+  caixinhas: null,       // dinheiro guardado; null se a tabela não existe (07_caixinhas.sql)
   pendentes: new Set(),  // ids esperando internet
   filtroCat: null,
   categoriaSel: null,
@@ -223,7 +228,7 @@ function gravarCache() {
     localStorage.setItem(CHAVE_CACHE, JSON.stringify({
       user: estado.sessao?.user?.id, casa: estado.casa, lancs: estado.lancs, membros: [...estado.membros.entries()],
       series: estado.seriesDb ? [...estado.seriesDb.entries()] : null,
-      limites: estado.limites ? [...estado.limites.entries()] : null, quando: Date.now(),
+      limites: estado.limites ? [...estado.limites.entries()] : null, caixinhas: estado.caixinhas, quando: Date.now(),
     }));
   } catch (e) { /* armazenamento cheio ou bloqueado: segue sem cache */ }
 }
@@ -238,6 +243,7 @@ async function abrirCasa() {
     estado.membros = new Map(cache.membros);
     estado.seriesDb = cache.series ? new Map(cache.series) : null;
     estado.limites = cache.limites ? new Map(cache.limites) : null;
+    estado.caixinhas = cache.caixinhas || null;
     mostrarTela("tela-app");
     definirLancs(aplicarFila(cache.lancs));
   }
@@ -288,12 +294,14 @@ async function carregar() {
     todos.push(...data);
     if (data.length < 1000) break;
   }
-  const [s, lim] = await Promise.all([
+  const [s, lim, cx] = await Promise.all([
     sb.from("series").select("*").eq("casa_id", estado.casa.id),
     sb.from("limites").select("categoria, valor").eq("casa_id", estado.casa.id),
+    sb.from("caixinhas").select("*").eq("casa_id", estado.casa.id).order("ordem").order("criado_em"),
   ]);
   estado.seriesDb = s.error ? null : new Map(s.data.map((x) => [x.grupo, x]));
   estado.limites = lim.error ? null : new Map(lim.data.map((x) => [x.categoria, Number(x.valor)]));
+  estado.caixinhas = cx.error ? null : cx.data;
   definirLancs(aplicarFila(todos));
   gravarCache();
 }
@@ -360,7 +368,7 @@ function definirLancs(lista) {
   // A categoria que vocês escolheram por último para cada descrição vale para as próximas.
   estado.aprendidas = new Map();
   for (const l of [...lista].sort((a, b) => (a.atualizado_em || "").localeCompare(b.atualizado_em || ""))) {
-    if (l.categoria) estado.aprendidas.set(l.tipo + "|" + normalizar(l.descricao), l.categoria);
+    if (l.categoria && !l.caixinha_id) estado.aprendidas.set(l.tipo + "|" + normalizar(l.descricao), l.categoria);
   }
   estado.saldoApos = new Map();
   let s = 0;
@@ -571,8 +579,8 @@ function render() {
   const doMes = estado.lancs.filter((l) => l.data.startsWith(mes));
   const naConta = r2(estado.lancs.reduce((s, l) => (l.pago ? s + sinal(l) : s), 0));
   const fimMes = saldoAte(fim);
-  const entradas = doMes.filter((l) => l.tipo === "receita").reduce((s, l) => s + Number(l.valor), 0);
-  const saidas = doMes.filter((l) => l.tipo === "despesa").reduce((s, l) => s + Number(l.valor), 0);
+  const entradas = doMes.filter((l) => l.tipo === "receita" && !ehCaixinha(l)).reduce((s, l) => s + Number(l.valor), 0);
+  const saidas = doMes.filter((l) => l.tipo === "despesa" && !ehCaixinha(l)).reduce((s, l) => s + Number(l.valor), 0);
   const pts = pontosDoMes(mes);
 
   // Número principal: no mês atual, o que está na conta; nos outros, como o mês termina.
@@ -644,6 +652,10 @@ function render() {
         <div><span>Saídas do mês</span><b class="num" style="color:var(--vermelho)">${brl.format(saidas)}</b></div>
       </div>
       ${doMes.length ? `<button class="linha-resumo" data-abrir-resumo>${svg('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>')}<span>Para onde foi o dinheiro em ${nomeDoMes(mes)}</span>${IC.ir}</button>` : ""}
+      ${estado.caixinhas ? `<button class="linha-resumo" data-abrir-caixinhas>${caixaIcone("cofre")}<span>${estado.caixinhas.some((c) => !c.arquivada)
+        ? `Caixinhas · <b class="num">${brl.format(totalGuardado())}</b> guardados`
+        : "Começar a guardar dinheiro"}</span>${IC.ir}</button>` : ""}
+      ${estado.lancs.length ? `<button class="linha-resumo" data-abrir-ano>${svg('<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>')}<span>Visão de ${mes.slice(0, 4)} e como estamos</span>${IC.ir}</button>` : ""}
       ${avisos.length ? `<div class="avisos">${avisos.join("")}</div>` : ""}
     </section>
     <section class="col-extrato">
@@ -717,7 +729,8 @@ function itemHtml(l, hj, op = {}) {
   const tags = [];
   if (op.data) tags.push(`<span class="tag num">${dataCurta(l.data)}</span>`);
   if (l.parcelas) tags.push(`<span class="tag num">${l.parcela}/${l.parcelas}</span>`);
-  if (l.recorrente) tags.push(`<span class="tag">fixa</span>`);
+  if (l.caixinha_id) tags.push(`<span class="tag guardar">${l.tipo === "despesa" ? "guardar" : "resgate"}</span>`);
+  else if (l.recorrente) tags.push(`<span class="tag">fixa</span>`);
   if (atrasado) tags.push(`<span class="tag atraso">atrasado</span>`);
   if (l.criado_por) tags.push(`<span class="tag">${esc(nomeDe(l.criado_por))}</span>`);
   if (estado.pendentes.has(l.id)) tags.push(`<span class="tag atraso">aguardando internet</span>`);
@@ -725,7 +738,7 @@ function itemHtml(l, hj, op = {}) {
   return `<div class="item ${baixado ? "baixado" : ""}">
     <button class="check ${l.pago ? "ok" : ""} ${atrasado ? "atrasado" : ""}" data-check="${l.id}" aria-pressed="${l.pago}" aria-label="${esc(l.descricao)}: ${l.pago ? `tirar check` : `marcar como ${feito}`}"><span class="bola">${IC.check}</span></button>
     <button class="corpo" data-editar="${l.id}">
-      <span class="cat-ic" title="${esc(catInfo(l.tipo, categoriaDe(l)).nome)}">${catInfo(l.tipo, categoriaDe(l)).icone}</span>
+      <span class="cat-ic ${l.caixinha_id ? "cx" : ""}" title="${esc(nomeCatDe(l))}">${iconeDe(l)}</span>
       <div class="txt">
         <div class="desc">${esc(l.descricao)}</div>
         ${tags.length ? `<div class="meta">${tags.join("")}</div>` : ""}
@@ -743,6 +756,8 @@ $("conteudo").addEventListener("click", async (ev) => {
   if (t("[data-filtro]")) { estado.filtro = t("[data-filtro]").dataset.filtro; estado.filtroCat = null; render(); return; }
   if (t("[data-limpar-cat]")) { estado.filtroCat = null; render(); return; }
   if (t("[data-abrir-resumo]")) { abrirResumo(); return; }
+  if (t("[data-abrir-caixinhas]")) { abrirCaixinhas(); return; }
+  if (t("[data-abrir-ano]")) { abrirAno(Number(estado.mes.slice(0, 4))); return; }
   if (t("[data-enviar-fila]")) {
     if (!navigator.onLine) { avisar("Ainda sem internet. Assim que conectar, o app envia sozinho."); return; }
     await enviarFila();
@@ -857,7 +872,7 @@ window.addEventListener("scroll", () => $("topo").classList.toggle("rolou", wind
 
 // ---------- painéis ----------
 
-const PAINEIS = ["painel-lanc", "painel-ajustes", "painel-historico", "painel-series", "painel-resumo", "painel-busca", "painel-limites"];
+const PAINEIS = ["painel-lanc", "painel-ajustes", "painel-historico", "painel-series", "painel-resumo", "painel-busca", "painel-limites", "painel-caixinhas", "painel-caixa", "painel-mov", "painel-ano"];
 function abrirPainel(p) {
   fecharPaineis(true);
   $("fundo").hidden = false;
@@ -1033,6 +1048,7 @@ function abrirLanc(l, padrao = {}) {
   estado.categoriaSel = l ? categoriaDe(l) : null;
   catManual = !!l;
   definirTipo(tipoSel);
+  for (const id of ["lanc-cats-rot", "lanc-cats"]) $(id).hidden = !!l?.caixinha_id;
   $("lanc-semfim").checked = false;
   $("bloco-semfim").hidden = !estado.seriesDb;
   const dataPadrao = padrao.data || (estado.mes === hoje().slice(0, 7) ? hoje() : estado.mes + "-01");
@@ -1190,7 +1206,7 @@ $("lanc-estender").onclick = async () => {
 
 function totaisPorCategoria(lista, tipo) {
   const m = new Map();
-  for (const l of lista) if (l.tipo === tipo) { const k = categoriaDe(l); m.set(k, (m.get(k) || 0) + Number(l.valor)); }
+  for (const l of lista) if (l.tipo === tipo && !ehCaixinha(l)) { const k = categoriaDe(l); m.set(k, (m.get(k) || 0) + Number(l.valor)); }
   return [...m.entries()].sort((a, b) => b[1] - a[1]);
 }
 
@@ -1283,21 +1299,24 @@ function abrirResumo() {
   const nome = nomeDoMes(mes), nomeAnt = nomeDoMes(ant);
   const doMes = estado.lancs.filter((l) => l.data.startsWith(mes));
   const doAnt = estado.lancs.filter((l) => l.data.startsWith(ant));
-  const soma = (ls, t) => ls.filter((l) => l.tipo === t).reduce((s, l) => s + Number(l.valor), 0);
+  const soma = (ls, t) => ls.filter((l) => l.tipo === t && !ehCaixinha(l)).reduce((s, l) => s + Number(l.valor), 0);
   const ent = soma(doMes, "receita"), sai = soma(doMes, "despesa"), saiAnt = soma(doAnt, "despesa");
-  const sobra = r2(ent - sai);
+  const guardou = guardadoEm(doMes);
+  const sobra = r2(ent - sai - guardou);
   const pend = doMes.filter((l) => !l.pago);
   const pPagar = soma(pend, "despesa"), pReceber = soma(pend, "receita");
 
   const frases = [`Em ${nome} entram <b class="num">${brl.format(ent)}</b> e saem <b class="num">${brl.format(sai)}</b>.`,
-    `${sobra >= 0 ? "Sobram" : "Faltam"} <b class="num" style="color:var(${sobra >= 0 ? "--verde" : "--vermelho"})">${brl.format(Math.abs(sobra))}</b> no mês.`];
+    ...(guardou > 0 ? [`Vocês guardam <b class="num">${brl.format(guardou)}</b> nas caixinhas${ent > 0 ? ` (${Math.round((guardou / ent) * 100)}% do que entra)` : ""}.`]
+      : guardou < 0 ? [`Voltam <b class="num">${brl.format(-guardou)}</b> das caixinhas para a conta.`] : []),
+    `${sobra >= 0 ? "Sobram" : "Faltam"} <b class="num" style="color:var(${sobra >= 0 ? "--verde" : "--vermelho"})">${brl.format(Math.abs(sobra))}</b> no mês${guardou > 0 ? ", depois de guardar" : ""}.`];
   if (saiAnt > 0) {
     const pct = Math.round(((sai - saiAnt) / saiAnt) * 100);
     frases.push(pct === 0 ? `As saídas estão iguais às de ${nomeAnt}.` : `As saídas estão ${Math.abs(pct)}% ${pct > 0 ? "acima" : "abaixo"} de ${nomeAnt} (${brl.format(saiAnt)}).`);
   }
   if (pend.length) frases.push(`Ainda sem check: ${[pPagar && `${brl.format(pPagar)} a pagar`, pReceber && `${brl.format(pReceber)} a receber`].filter(Boolean).join(" e ")}.`);
 
-  const maiores = doMes.filter((l) => l.tipo === "despesa").sort((a, b) => b.valor - a.valor).slice(0, 5);
+  const maiores = doMes.filter((l) => l.tipo === "despesa" && !ehCaixinha(l)).sort((a, b) => b.valor - a.valor).slice(0, 5);
   $("resumo-tit").textContent = `Resumo de ${nomeMes.format(deIso(mes + "-01"))}`;
   $("resumo-corpo").innerHTML = `
     <div class="frases">${frases.map((f) => `<p>${f}</p>`).join("")}</div>
@@ -1307,7 +1326,7 @@ function abrirResumo() {
     <h3 class="sub">Entradas por categoria</h3>
     ${barrasHtml("receita", doMes, doAnt)}
     ${maiores.length ? `<h3 class="sub">Maiores saídas</h3><div class="lista lista-plana">${maiores.map((l) => `<button class="linha-simples" data-abrir-lanc="${l.id}">
-      <span class="cat-ic">${catInfo(l.tipo, categoriaDe(l)).icone}</span><span class="desc">${esc(l.descricao)}</span>
+      <span class="cat-ic">${iconeDe(l)}</span><span class="desc">${esc(l.descricao)}</span>
       <span class="num quando">${dataCurta(l.data)}</span><b class="num">${brl.format(Number(l.valor))}</b></button>`).join("")}</div>` : ""}
     <p class="nota">Inclui o que ainda não tem check. Toque numa categoria para ver os lançamentos dela.</p>`;
   abrirPainel($("painel-resumo"));
@@ -1327,6 +1346,543 @@ $("resumo-corpo").addEventListener("click", (e) => {
   const a = e.target.closest("[data-abrir-lanc]");
   if (a) abrirLanc(estado.lancs.find((l) => l.id === a.dataset.abrirLanc));
 });
+
+// ---------- caixinhas ----------
+
+const CAIXA_ICONES = {
+  cofre: '<path d="M4.5 11.5a7.5 6 0 0113.6-3.4H20v3.4h1.5v3.2H20a7.5 6 0 01-3 2.9V20h-3v-1.8a9 9 0 01-3 0V20H8v-2.6a6 6 0 01-3.5-5.9z"/><path d="M15.5 10.5h.01M10 7.5h3"/>',
+  escudo: '<path d="M12 3l7.5 3v5.2c0 4.6-3.2 8.2-7.5 9.8-4.3-1.6-7.5-5.2-7.5-9.8V6z"/><path d="M9 12l2.2 2.2L15.5 10"/>',
+  crianca: '<circle cx="12" cy="8.5" r="4.5"/><path d="M4.5 21a7.5 7.5 0 0115 0"/><path d="M10.3 8.5h.01M13.7 8.5h.01M10.5 10.6c.9.6 2.1.6 3 0"/>',
+  coracao: '<path d="M12 20s-7-4.4-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.6-7 10-7 10z"/>',
+  casa: '<path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-6h4v6"/>',
+  viagem: '<path d="M3 13.5l18-8.5-6 16-3.2-6.3z"/><path d="M11.8 14.7L21 5"/>',
+  estrela: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
+};
+function caixaIcone(k) { return svg(CAIXA_ICONES[k] || CAIXA_ICONES.cofre); }
+function caixinhaDe(id) { return estado.caixinhas?.find((c) => c.id === id) || null; }
+const caixinhasAtivas = () => (estado.caixinhas || []).filter((c) => !c.arquivada);
+const ehEmergencia = (c) => c.icone === "escudo" || /emerg|reserva/.test(normalizar(c.nome));
+const mesesEntre = (a, b) => (Number(b.slice(0, 4)) - Number(a.slice(0, 4))) * 12 + Number(b.slice(5, 7)) - Number(a.slice(5, 7));
+
+// Guardado menos resgatado numa lista de lançamentos (conta também o que ainda não tem check).
+function guardadoEm(lista) {
+  return r2(lista.reduce((s, l) => (l.caixinha_id ? s + (l.tipo === "despesa" ? 1 : -1) * Number(l.valor) : s), 0));
+}
+
+// Saldo de uma caixinha: o que já saiu da conta para ela (com check) ou o saldo informado na mão.
+function saldoCaixinha(c) {
+  let guardado = 0, depoisDoReal = 0, previsto = 0;
+  for (const l of estado.lancs) {
+    if (l.caixinha_id !== c.id) continue;
+    const v = (l.tipo === "despesa" ? 1 : -1) * Number(l.valor);
+    if (!l.pago) { previsto += v; continue; }
+    guardado += v;
+    if (c.saldo_real_em && l.data > c.saldo_real_em) depoisDoReal += v;
+  }
+  const temReal = c.saldo_real != null;
+  const atual = temReal ? Number(c.saldo_real) + depoisDoReal : guardado;
+  return { guardado: r2(guardado), atual: r2(Math.max(0, atual)), rendeu: temReal ? r2(atual - guardado) : 0, previsto: r2(previsto) };
+}
+function totalGuardado() { return r2(caixinhasAtivas().reduce((s, c) => s + saldoCaixinha(c).atual, 0)); }
+
+function serieDaCaixinha(c) {
+  return series().find((s) => s.ls[0].caixinha_id === c.id && s.ultimo.tipo === "despesa" && (s.semFim || s.ultimo.data >= hoje())) || null;
+}
+
+function planoCaixinha(c) {
+  const s = saldoCaixinha(c), serie = serieDaCaixinha(c);
+  const mensal = serie ? Number(serie.ultimo.valor) : 0;
+  const obj = c.objetivo ? Number(c.objetivo) : 0;
+  const falta = obj ? r2(Math.max(0, obj - s.atual)) : 0;
+  const mesAtual = hoje().slice(0, 7);
+  // Conta o mês atual: o depósito dele ainda pode acontecer.
+  const meses = c.prazo ? Math.max(1, mesesEntre(mesAtual, c.prazo.slice(0, 7)) + 1) : null;
+  const precisa = obj && meses ? r2(falta / meses) : null;
+  const chegaEm = obj && falta > 0 && mensal > 0 ? somarMeses(mesAtual + "-01", Math.ceil(falta / mensal) - 1).slice(0, 7) : null;
+  return { ...s, mensal, serie, obj, falta, meses, precisa, chegaEm, fracao: obj ? Math.min(1, s.atual / obj) : null };
+}
+
+function statusCaixinha(c, p) {
+  const ritmo = p.mensal ? `${brl.format(p.mensal)} por mês` : "";
+  if (p.obj && !p.falta) return { txt: "Chegou no objetivo.", tom: "bom" };
+  if (p.obj && c.prazo) {
+    const prazo = mesCurto(c.prazo);
+    if (p.mensal && p.mensal + 0.005 >= p.precisa) return { txt: `Guardando ${ritmo}, chega lá em ${mesCurto(p.chegaEm + "-01")}, dentro do prazo (${prazo}).`, tom: "bom" };
+    return { txt: `Para chegar até ${prazo}: ${brl.format(p.precisa)} por mês${p.mensal ? ` (hoje: ${ritmo})` : ""}.`, tom: "perto" };
+  }
+  if (p.obj) return p.mensal ? { txt: `Guardando ${ritmo}, chega lá em ${mesCurto(p.chegaEm + "-01")}.`, tom: "" } : { txt: `Faltam ${brl.format(p.falta)}. Sem depósito mensal.`, tom: "perto" };
+  return p.mensal ? { txt: `Guardando ${ritmo}.`, tom: "" } : { txt: "Sem depósito mensal.", tom: "" };
+}
+
+// Média de gastos por mês (sem caixinhas), dos meses com lançamento entre 6 meses atrás e 2 à frente.
+function gastoMedioMensal() {
+  const mesAtual = hoje().slice(0, 7), ini = somarMeses(mesAtual + "-01", -6).slice(0, 7), fim = somarMeses(mesAtual + "-01", 2).slice(0, 7);
+  const porMes = new Map();
+  for (const l of estado.lancs) {
+    const m = l.data.slice(0, 7);
+    if (m < ini || m > fim || l.tipo !== "despesa" || ehCaixinha(l)) continue;
+    porMes.set(m, (porMes.get(m) || 0) + Number(l.valor));
+  }
+  return porMes.size ? { valor: r2([...porMes.values()].reduce((a, b) => a + b, 0) / porMes.size), meses: porMes.size } : null;
+}
+
+function abrirCaixinhas() { renderCaixinhas(); abrirPainel($("painel-caixinhas")); }
+
+function renderCaixinhas() {
+  const lista = caixinhasAtivas(), alvo = $("lista-caixinhas");
+  if (!lista.length) {
+    alvo.innerHTML = `<p class="nota" style="margin-top:-6px">Cada caixinha separa um dinheiro guardado. Guardar tira da conta, mas não entra como gasto no resumo. Resgatar devolve para a conta.</p>
+      <div class="cx-sugeridas">${[["escudo", "Reserva de emergência"], ["crianca", "Gael"], ["crianca", "Dante"], ["coracao", "Nós"]]
+        .map(([i, n]) => `<span class="cx-chip">${caixaIcone(i)}${n}</span>`).join("")}</div>
+      <button class="btn" type="button" data-criar-sugeridas>Criar essas 4 caixinhas</button>
+      <button class="btn texto" type="button" data-nova-caixa>Criar outra caixinha</button>`;
+    return;
+  }
+  const mesAtual = hoje().slice(0, 7);
+  const doMes = guardadoEm(estado.lancs.filter((l) => l.data.startsWith(mesAtual)));
+  alvo.innerHTML = `<div class="cx-total">
+      <span>Guardado nas caixinhas</span>
+      ${valorHtml(totalGuardado())}
+      ${doMes ? `<small class="num">${doMes > 0 ? `${brl.format(doMes)} guardados` : `${brl.format(-doMes)} resgatados`} em ${nomeDoMes(mesAtual)}, contando o previsto</small>` : ""}
+    </div>` +
+    lista.map((c) => {
+      const p = planoCaixinha(c), st = statusCaixinha(c, p);
+      const real = c.saldo_real != null
+        ? `<div class="nota num">Saldo informado em ${dataMedia(c.saldo_real_em)}. ${p.rendeu >= 0 ? `Rendeu ${brl.format(p.rendeu)}` : `Tem ${brl.format(-p.rendeu)} a menos`} além do que foi guardado pelo app.</div>`
+        : "";
+      return `<div class="cx">
+        <button class="cx-cab" type="button" data-editar-caixa="${c.id}">
+          <span class="cat-ic cx">${caixaIcone(c.icone)}</span>
+          <span class="cx-txt"><span class="cx-nome">${esc(c.nome)}</span><small class="num ${st.tom}">${st.txt}</small></span>
+          <b class="num">${brl.format(p.atual)}</b>
+        </button>
+        ${p.obj ? `<div class="trilho"><span class="enche receita" style="width:${(p.fracao * 100).toFixed(1)}%"></span></div>
+          <div class="barra-rodape num"><span>${Math.round(p.fracao * 100)}% de ${brl.format(p.obj)}</span><span>${p.falta ? `faltam ${brl.format(p.falta)}` : "objetivo alcançado"}</span></div>` : ""}
+        ${real}
+        <div class="duas">
+          <button class="btn sec" type="button" data-guardar="${c.id}">Guardar</button>
+          <button class="btn sec" type="button" data-resgatar="${c.id}" ${p.atual > 0 ? "" : "disabled"}>Resgatar</button>
+        </div>
+      </div>`;
+    }).join("") +
+    `<button class="btn texto" type="button" data-nova-caixa>${IC.mais} Nova caixinha</button>
+     <p class="nota">Toque numa caixinha para mudar o objetivo, o prazo, o depósito mensal ou informar o saldo do banco.</p>`;
+}
+
+$("lista-caixinhas").addEventListener("click", async (e) => {
+  const t = (sel) => e.target.closest(sel);
+  if (t("[data-nova-caixa]")) { abrirCaixa(null); return; }
+  if (t("[data-editar-caixa]")) { abrirCaixa(caixinhaDe(t("[data-editar-caixa]").dataset.editarCaixa)); return; }
+  if (t("[data-guardar]")) { abrirMov(caixinhaDe(t("[data-guardar]").dataset.guardar), "despesa"); return; }
+  if (t("[data-resgatar]")) { abrirMov(caixinhaDe(t("[data-resgatar]").dataset.resgatar), "receita"); return; }
+  const b = t("[data-criar-sugeridas]");
+  if (!b) return;
+  b.disabled = true;
+  const media = gastoMedioMensal();
+  const linhas = [["Reserva de emergência", "escudo", media ? Math.round(media.valor * 6 / 100) * 100 : null], ["Gael", "crianca", null], ["Dante", "crianca", null], ["Nós", "coracao", null]]
+    .map(([nome, icone, objetivo], i) => ({ id: crypto.randomUUID(), casa_id: estado.casa.id, nome, icone, objetivo, ordem: i }));
+  const { error } = await sb.from("caixinhas").insert(linhas);
+  if (error) { b.disabled = false; avisar(msgErro(error)); return; }
+  await carregar();
+  renderCaixinhas();
+  vibrar(12);
+  avisar(media ? `Criadas. A reserva começou com objetivo de 6 meses de gastos (${brl.format(linhas[0].objetivo)}).` : "Caixinhas criadas.");
+});
+
+// ---------- editar caixinha ----------
+
+let caixaEditando = null, caixaIconeSel = "cofre";
+function renderIconesCaixa() {
+  $("caixa-icones").innerHTML = Object.keys(CAIXA_ICONES).map((k) =>
+    `<button type="button" class="cat so-icone ${caixaIconeSel === k ? "ativo" : ""}" data-icone="${k}" role="radio" aria-checked="${caixaIconeSel === k}" aria-label="${k}">${caixaIcone(k)}</button>`).join("");
+}
+$("caixa-icones").onclick = (e) => { const b = e.target.closest("[data-icone]"); if (b) { caixaIconeSel = b.dataset.icone; renderIconesCaixa(); previaCaixa(); } };
+
+function abrirCaixa(c) {
+  caixaEditando = c;
+  const p = c ? planoCaixinha(c) : null;
+  $("caixa-tit").textContent = c ? c.nome : "Nova caixinha";
+  $("caixa-nome").value = c ? c.nome : "";
+  caixaIconeSel = c ? c.icone : "cofre";
+  renderIconesCaixa();
+  $("caixa-obj").value = c?.objetivo ? mostrarValor(Number(c.objetivo)) : "";
+  $("caixa-prazo").value = c?.prazo ? c.prazo.slice(0, 7) : "";
+  $("caixa-mensal").value = p?.mensal ? mostrarValor(p.mensal) : "";
+  $("caixa-dia").value = p?.serie ? Number(p.serie.ultimo.data.slice(8)) : 5;
+  $("caixa-real").value = "";
+  $("caixa-real").placeholder = p ? mostrarValor(p.atual) : "0,00";
+  $("caixa-erro").textContent = "";
+  $("caixa-acoes").hidden = !c;
+  const temMov = c && estado.lancs.some((l) => l.caixinha_id === c.id);
+  $("caixa-apagar").textContent = temMov ? "Arquivar caixinha" : "Apagar caixinha";
+  previaCaixa();
+  abrirPainel($("painel-caixa"));
+}
+
+function previaCaixa() {
+  const obj = lerValor($("caixa-obj").value), prazo = $("caixa-prazo").value, mensal = lerValor($("caixa-mensal").value);
+  const atual = caixaEditando ? planoCaixinha(caixaEditando).atual : 0;
+  const nome = $("caixa-nome").value.trim();
+  const media = gastoMedioMensal();
+  const sug = $("caixa-sug");
+  const pareceEmergencia = caixaIconeSel === "escudo" || /emerg|reserva/.test(normalizar(nome));
+  sug.hidden = !(pareceEmergencia && media);
+  if (!sug.hidden) {
+    const seis = Math.round(media.valor * 6 / 100) * 100;
+    sug.innerHTML = `Vocês gastam em média <b class="num">${brl.format(media.valor)}</b> por mês (${media.meses} ${media.meses === 1 ? "mês" : "meses"}). A reserva costuma ser de 6 meses: <button class="link" type="button" data-usar-seis="${seis}">usar ${brl.format(seis)}</button>`;
+  }
+  const p = $("caixa-previa"), falta = Number.isFinite(obj) && obj > 0 ? Math.max(0, obj - atual) : 0;
+  const linhas = [];
+  if (falta && prazo) {
+    const meses = Math.max(1, mesesEntre(hoje().slice(0, 7), prazo) + 1);
+    linhas.push(`Para chegar a ${brl.format(obj)} até ${mesCurto(prazo + "-01")}: <b class="num">${brl.format(falta / meses)}</b> por mês, em ${meses} ${meses === 1 ? "mês" : "meses"}.`);
+  }
+  if (falta && mensal > 0) linhas.push(`Com ${brl.format(mensal)} por mês, chega lá em ${mesCurto(somarMeses(hoje().slice(0, 7) + "-01", Math.ceil(falta / mensal) - 1))}.`);
+  p.innerHTML = linhas.map((x) => `<span>${x}</span>`).join("");
+  p.hidden = !linhas.length;
+}
+for (const id of ["caixa-nome", "caixa-obj", "caixa-prazo", "caixa-mensal"]) $(id).addEventListener("input", previaCaixa);
+$("caixa-sug").onclick = (e) => { const b = e.target.closest("[data-usar-seis]"); if (b) { $("caixa-obj").value = mostrarValor(Number(b.dataset.usarSeis)); previaCaixa(); } };
+
+// Primeira data do depósito: no dia escolhido deste mês, ou do próximo se já passou.
+function primeiraData(dia) {
+  const hj = hoje(), neste = `${hj.slice(0, 7)}-${String(dia).padStart(2, "0")}`;
+  return neste >= hj ? neste : somarMeses(neste, 1);
+}
+
+// Cria, muda ou para o depósito mensal (uma conta fixa sem fim ligada à caixinha).
+async function ajustarDeposito(c, mensal, dia) {
+  const s = serieDaCaixinha(c), hj = hoje();
+  const descricao = `Guardar ${c.nome}`;
+  if (s) {
+    const futuros = s.ls.filter((l) => !l.pago && l.data >= hj).map((l) => l.id);
+    const mudouDia = Number(s.ultimo.data.slice(8)) !== dia;
+    if (mensal && !mudouDia) {
+      if (futuros.length && (Number(s.ultimo.valor) !== mensal || s.ultimo.descricao !== descricao)) {
+        const { error } = await sb.from("lancamentos").update({ valor: mensal, descricao }).in("id", futuros);
+        if (error) throw error;
+      }
+      return;
+    }
+    // Parar (ou trocar o dia): encerra a série e apaga os depósitos que ainda não aconteceram.
+    if (estado.seriesDb?.get(s.grupo)?.sem_fim) {
+      const r = await sb.from("series").update({ sem_fim: false }).eq("grupo", s.grupo);
+      if (r.error) throw r.error;
+    }
+    await apagarIds(futuros);
+    if (!mensal) return;
+  }
+  if (!mensal) return;
+  const ini = primeiraData(dia), grupo = crypto.randomUUID();
+  const linhas = Array.from({ length: 12 }, (_, i) => ({
+    id: crypto.randomUUID(), casa_id: estado.casa.id, descricao, tipo: "despesa", valor: mensal, data: somarMeses(ini, i),
+    pago: false, recorrente: true, parcela: null, parcelas: null, grupo, caixinha_id: c.id,
+    ...(estado.temCategoria ? { categoria: "outros" } : {}),
+  }));
+  const { error } = await sb.from("lancamentos").insert(linhas);
+  if (error) throw error;
+  if (estado.seriesDb) {
+    const r = await sb.from("series").insert({ grupo, casa_id: estado.casa.id, passo: "mes", sem_fim: true, gerado_ate: linhas[11].data });
+    if (r.error) throw r.error;
+  }
+}
+
+$("painel-caixa").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const erro = (m) => { $("caixa-erro").textContent = m; };
+  const nome = $("caixa-nome").value.trim().replace(/\s+/g, " ");
+  const txt = (id) => $(id).value.trim();
+  const obj = txt("caixa-obj") ? lerValor(txt("caixa-obj")) : null;
+  const mensal = txt("caixa-mensal") ? lerValor(txt("caixa-mensal")) : 0;
+  const real = txt("caixa-real") ? lerValor(txt("caixa-real")) : null;
+  const dia = parseInt($("caixa-dia").value, 10);
+  if (!nome) return erro("Dê um nome para a caixinha.");
+  if (obj !== null && !(obj > 0)) return erro("Objetivo inválido. Ex.: 20000 ou 20.000,00.");
+  if (!Number.isFinite(mensal)) return erro("Depósito mensal inválido. Ex.: 200 ou 150,50.");
+  if (mensal && !(dia >= 1 && dia <= 28)) return erro("O dia do depósito vai de 1 a 28.");
+  if (real !== null && !Number.isFinite(real)) return erro("Saldo inválido. Ex.: 1250,30.");
+  const prazo = txt("caixa-prazo");
+  if (prazo && prazo < hoje().slice(0, 7)) return erro("O prazo já passou. Escolha um mês daqui para frente.");
+
+  const btn = $("caixa-salvar");
+  btn.disabled = true;
+  try {
+    const c = caixaEditando;
+    const linha = {
+      id: c?.id || crypto.randomUUID(), casa_id: estado.casa.id, nome, icone: caixaIconeSel,
+      objetivo: obj, prazo: prazo ? prazo + "-01" : null, atualizado_em: new Date().toISOString(),
+      ...(c ? {} : { ordem: (estado.caixinhas || []).length }),
+      ...(real !== null ? { saldo_real: real, saldo_real_em: hoje() } : {}),
+    };
+    const { error } = await sb.from("caixinhas").upsert(linha);
+    if (error) throw error;
+    await ajustarDeposito({ ...c, ...linha }, mensal || 0, dia);
+    await carregar();
+    vibrar(12);
+    avisar(c ? "Caixinha atualizada." : `Caixinha "${nome}" criada.`);
+    abrirCaixinhas();
+  } catch (e) {
+    erro(msgErro(e));
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// Sem movimento, apaga. Com movimento, arquiva: o dinheiro guardado continua contando certo no histórico.
+$("caixa-apagar").onclick = async () => {
+  const c = caixaEditando;
+  if (!c) return;
+  const temMov = estado.lancs.some((l) => l.caixinha_id === c.id);
+  const saldo = saldoCaixinha(c).atual;
+  const ok = await confirmar(temMov ? `Arquivar "${c.nome}"?` : `Apagar "${c.nome}"?`,
+    temMov ? `Ela some da lista e os depósitos que ainda não aconteceram são apagados.${saldo ? ` Ela tem ${brl.format(saldo)}: se o dinheiro voltou para a conta, faça um resgate antes.` : ""}` : "Ela ainda não tem nenhum depósito.",
+    temMov ? "Arquivar" : "Apagar");
+  if (!ok) return;
+  try {
+    await ajustarDeposito(c, 0, 1);
+    const r = temMov
+      ? await sb.from("caixinhas").update({ arquivada: true, atualizado_em: new Date().toISOString() }).eq("id", c.id)
+      : await sb.from("caixinhas").delete().eq("id", c.id);
+    if (r.error) throw r.error;
+    await carregar();
+    avisar(temMov ? `"${c.nome}" arquivada.` : `"${c.nome}" apagada.`);
+    abrirCaixinhas();
+  } catch (e) { avisar(msgErro(e)); }
+};
+
+// ---------- guardar e resgatar ----------
+
+let movSel = null; // { c, tipo }
+function abrirMov(c, tipo) {
+  if (!c) return;
+  movSel = { c, tipo };
+  const guardar = tipo === "despesa", p = planoCaixinha(c);
+  $("mov-tit").textContent = guardar ? `Guardar em ${c.nome}` : `Resgatar de ${c.nome}`;
+  $("mov-valor").value = guardar && p.mensal ? mostrarValor(p.mensal) : "";
+  $("mov-data").value = hoje();
+  $("mov-feito").checked = true;
+  $("mov-feito-rot").textContent = guardar ? "Já saiu da conta" : "Já voltou para a conta";
+  $("mov-nota").textContent = guardar
+    ? `Sai do saldo da conta e entra na caixinha. Ela tem ${brl.format(p.atual)}.`
+    : `Volta para o saldo da conta. A caixinha tem ${brl.format(p.atual)}.`;
+  $("mov-erro").textContent = "";
+  abrirPainel($("painel-mov"));
+  setTimeout(() => $("mov-valor").focus(), 300);
+}
+$("mov-data").addEventListener("change", () => { $("mov-feito").checked = $("mov-data").value <= hoje(); });
+
+$("painel-mov").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const { c, tipo } = movSel || {};
+  if (!c) return;
+  const erro = (m) => { $("mov-erro").textContent = m; };
+  const valor = lerValor($("mov-valor").value), data = $("mov-data").value;
+  if (!(valor > 0)) return erro("Digite um valor, por exemplo 200 ou 150,50.");
+  if (!data) return erro("Escolha a data.");
+  const saldo = saldoCaixinha(c).atual;
+  if (tipo === "receita" && valor > saldo + 0.005) return erro(`A caixinha tem só ${brl.format(saldo)}.`);
+  const btn = $("mov-salvar");
+  btn.disabled = true;
+  try {
+    const linha = {
+      id: crypto.randomUUID(), casa_id: estado.casa.id, descricao: tipo === "despesa" ? `Guardar ${c.nome}` : `Resgate ${c.nome}`,
+      tipo, valor, data, pago: $("mov-feito").checked, recorrente: false, parcela: null, parcelas: null, grupo: null, caixinha_id: c.id,
+      ...(estado.temCategoria ? { categoria: "outros" } : {}),
+    };
+    const { error } = await sb.from("lancamentos").insert(linha);
+    if (error) throw error;
+    await carregar();
+    vibrar(12);
+    avisar(tipo === "despesa" ? `${brl.format(valor)} guardados em ${c.nome}.` : `${brl.format(valor)} resgatados de ${c.nome}.`, () => apagarIds([linha.id]));
+    abrirCaixinhas();
+  } catch (e) {
+    erro(msgErro(e));
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ---------- visão do ano ----------
+
+function numerosDoMes(m) {
+  let ent = 0, gasto = 0, guardou = 0, n = 0;
+  for (const l of estado.lancs) {
+    if (!l.data.startsWith(m)) continue;
+    const v = Number(l.valor);
+    n++;
+    if (l.caixinha_id) guardou += l.tipo === "despesa" ? v : -v;
+    else if (l.tipo === "receita") ent += v;
+    else gasto += v;
+  }
+  return { mes: m, ent: r2(ent), gasto: r2(gasto), guardou: r2(guardou), sobra: r2(ent - gasto - guardou), n };
+}
+
+let anoSel = null;
+function abrirAno(ano) { anoSel = ano; renderAno(); abrirPainel($("painel-ano")); }
+
+$("painel-ano").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-ano-passo]");
+  if (b) { anoSel += Number(b.dataset.anoPasso); renderAno(); $("painel-ano").scrollTop = 0; return; }
+  if (e.target.closest("[data-ano-caixinhas]")) abrirCaixinhas();
+});
+
+function renderAno() {
+  const ano = anoSel, mesAtual = hoje().slice(0, 7);
+  const anos = estado.lancs.map((l) => Number(l.data.slice(0, 4)));
+  $("ano-tit").textContent = `Visão de ${ano}`;
+  $("ano-ant").disabled = !anos.length || ano <= Math.min(...anos);
+  $("ano-prox").disabled = !anos.length || ano >= Math.max(...anos);
+  const meses = Array.from({ length: 12 }, (_, i) => numerosDoMes(`${ano}-${String(i + 1).padStart(2, "0")}`)).filter((x) => x.n);
+  const corpo = $("ano-corpo");
+  if (!meses.length) { corpo.innerHTML = `<div class="vazio">Nada lançado em ${ano}.</div>`; return; }
+
+  const tot = meses.reduce((a, x) => ({ ent: a.ent + x.ent, gasto: a.gasto + x.gasto, guardou: a.guardou + x.guardou, sobra: a.sobra + x.sobra }), { ent: 0, gasto: 0, guardou: 0, sobra: 0 });
+  const previstos = meses.filter((x) => x.mes > mesAtual).length;
+  const pct = (a, b) => (b > 0 ? Math.round((a / b) * 100) : 0);
+
+  const frases = [
+    `Em ${ano} entram <b class="num">${brl.format(tot.ent)}</b> e vão para gastos <b class="num">${brl.format(tot.gasto)}</b>.`,
+    tot.guardou > 0 ? `Vocês guardam <b class="num">${brl.format(tot.guardou)}</b> nas caixinhas, ${pct(tot.guardou, tot.ent)}% do que entra.` : "Ainda não há nada guardado nas caixinhas neste ano.",
+    `${tot.sobra >= 0 ? "Sobram" : "Faltam"} <b class="num" style="color:var(${tot.sobra >= 0 ? "--verde" : "--vermelho"})">${brl.format(Math.abs(tot.sobra))}</b> no ano${tot.guardou > 0 ? ", depois de guardar" : ""}.`,
+    `<span class="nota">${meses.length} ${meses.length === 1 ? "mês" : "meses"} com lançamentos${previstos ? `, ${previstos} ainda ${previstos === 1 ? "previsto" : "previstos"}` : ""}. Conta também o que ainda não tem check.</span>`,
+  ];
+
+  // Mês a mês: a barra mostra como o que entrou foi dividido.
+  const mesesHtml = meses.map((x) => {
+    const base = Math.max(x.ent, x.gasto + Math.max(0, x.guardou), 1);
+    const g = (x.gasto / base) * 100, gu = (Math.max(0, x.guardou) / base) * 100;
+    return `<div class="mes-linha ${x.mes > mesAtual ? "futuro" : ""}">
+      <div class="barra-topo"><span>${nomeDoMes(x.mes + "-01")}${x.mes > mesAtual ? ' <small>previsto</small>' : x.mes === mesAtual ? ' <small>agora</small>' : ""}</span>
+        <b class="num" style="color:var(${x.sobra >= 0 ? "--verde" : "--vermelho"})">${x.sobra >= 0 ? "sobra" : "falta"} ${brl.format(Math.abs(x.sobra))}</b></div>
+      <div class="trilho pilha"><span class="seg-gasto" style="width:${g.toFixed(1)}%"></span><span class="seg-guardado" style="left:${g.toFixed(1)}%;width:${gu.toFixed(1)}%"></span></div>
+      <div class="barra-rodape num"><span>entrou ${brl.format(x.ent)} · gastou ${brl.format(x.gasto)}</span><span>guardou ${pct(Math.max(0, x.guardou), x.ent)}%</span></div>
+    </div>`;
+  }).join("");
+
+  const doAno = estado.lancs.filter((l) => l.data.startsWith(String(ano)));
+  const cats = totaisPorCategoria(doAno, "despesa");
+  const maxCat = Math.max(...cats.map(([, v]) => v), 1);
+  const catsHtml = cats.map(([k, v]) => {
+    const c = catInfo("despesa", k);
+    return `<div class="barra">
+      <span class="cat-ic">${c.icone}</span>
+      <span class="barra-corpo">
+        <span class="barra-topo"><span>${esc(c.nome)}</span><b class="num">${brl.format(v)}</b></span>
+        <span class="trilho"><span class="enche" style="width:${((v / maxCat) * 100).toFixed(1)}%"></span></span>
+        <span class="barra-rodape num"><span>${pct(v, tot.gasto)}% dos gastos</span><span>média ${brl.format(v / meses.length)} por mês</span></span>
+      </span>
+    </div>`;
+  }).join("");
+
+  const cxs = caixinhasAtivas();
+  const cxHtml = cxs.length
+    ? `<div class="lista lista-plana">${cxs.map((c) => {
+        const p = planoCaixinha(c), dela = doAno.filter((l) => l.caixinha_id === c.id);
+        const feito = guardadoEm(dela.filter((l) => l.pago)), previsto = guardadoEm(dela.filter((l) => !l.pago));
+        return `<button class="linha-simples" type="button" data-ano-caixinhas>
+          <span class="cat-ic cx">${caixaIcone(c.icone)}</span>
+          <span class="desc cx-ano">${esc(c.nome)}<span class="quando num">${feito || previsto ? [feito && `${brl.format(feito)} guardados em ${ano}`, previsto && `${brl.format(previsto)} previstos`].filter(Boolean).join(" + ") : `nada em ${ano}`}${p.obj ? ` · ${p.falta ? `faltam ${brl.format(p.falta)}` : "objetivo alcançado"}` : ""}</span></span>
+          <b class="num">${brl.format(p.atual)}</b></button>`;
+      }).join("")}</div>`
+    : `<button class="linha-resumo" type="button" data-ano-caixinhas>${caixaIcone("cofre")}<span>Criar as caixinhas (emergência, Gael, Dante, Nós)</span>${IC.ir}</button>`;
+
+  corpo.innerHTML = `
+    <div class="frases">${frases.map((f) => `<p>${f}</p>`).join("")}</div>
+    <h3 class="sub">Mês a mês</h3>
+    <div class="legenda-pilha"><span><i class="seg-gasto"></i>gastos</span><span><i class="seg-guardado"></i>guardado</span><span><i></i>sobra</span></div>
+    ${mesesHtml}
+    <h3 class="sub">Como estamos</h3>
+    ${analiseAno(ano, meses, tot, cats).map((a) => `<div class="insight ${a.tom}">${a.linhas.map((l) => `<p>${l}</p>`).join("")}</div>`).join("")}
+    <h3 class="sub">Caixinhas</h3>
+    ${cxHtml}
+    <h3 class="sub">Gastos por categoria no ano</h3>
+    ${catsHtml || '<div class="nota">Nenhum gasto no ano.</div>'}`;
+}
+
+// Leitura do ano com números: cada item é uma ou duas frases curtas e o que fazer.
+function analiseAno(ano, meses, tot, cats) {
+  const out = [], n = meses.length, b = (v) => `<b class="num">${brl.format(v)}</b>`;
+  const entMedia = tot.ent / n, gastoMedio = tot.gasto / n;
+  const cat = new Map(cats);
+  const pct = (a, base) => (base > 0 ? Math.round((a / base) * 100) : 0);
+
+  // Quanto da renda vira poupança.
+  const taxa = tot.ent > 0 ? tot.guardou / tot.ent : 0;
+  out.push({
+    tom: taxa >= 0.15 ? "bom" : taxa >= 0.05 ? "atencao" : "ruim",
+    linhas: [
+      `Vocês guardam ${pct(tot.guardou, tot.ent)}% do que entra.`,
+      taxa >= 0.15 ? "Está dentro da faixa que costuma ser recomendada, de 10% a 20%."
+        : `Uma meta comum é guardar de 10% a 20%. Com 10%, seriam ${b(entMedia * 0.1)} por mês.`,
+    ],
+  });
+
+  // Reserva de emergência.
+  const emerg = caixinhasAtivas().find(ehEmergencia);
+  const alvo6 = gastoMedio * 6;
+  if (emerg) {
+    const s = saldoCaixinha(emerg).atual, cobre = gastoMedio > 0 ? s / gastoMedio : 0;
+    out.push({
+      tom: cobre >= 6 ? "bom" : cobre >= 3 ? "atencao" : "ruim",
+      linhas: [
+        `A reserva de emergência tem ${b(s)} e cobre ${cobre < 1 ? "menos de 1 mês" : `${cobre.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} meses`} de gastos.`,
+        cobre >= 6 ? "Já passou dos 6 meses recomendados." : `O recomendado é 6 meses: ${b(alvo6)}. Faltam ${b(Math.max(0, alvo6 - s))}.`,
+      ],
+    });
+  } else if (gastoMedio > 0) {
+    out.push({ tom: "ruim", linhas: [
+      "Ainda não há reserva de emergência.",
+      `Com gastos médios de ${b(gastoMedio)} por mês, o recomendado é juntar ${b(alvo6)} (6 meses) antes de outros objetivos.`,
+    ] });
+  }
+
+  // Dívidas.
+  const div = cat.get("dividas") || 0;
+  if (div > 0) {
+    const p = div / Math.max(1, tot.ent);
+    out.push({ tom: p > 0.3 ? "ruim" : p > 0.15 ? "atencao" : "bom", linhas: [
+      `Empréstimos e cartões levam ${pct(div, tot.ent)}% do que entra: ${b(div / n)} por mês.`,
+      p > 0.3 ? "Passa dos 30% que costumam ser o limite. Quitar primeiro as dívidas com juros mais altos libera dinheiro para guardar."
+        : p > 0.15 ? "Está abaixo dos 30% que costumam ser o limite, mas vale não aumentar." : "Está abaixo dos 30% que costumam ser o limite.",
+    ] });
+  }
+
+  // Meses no vermelho.
+  const vermelho = meses.filter((x) => x.sobra < 0);
+  if (vermelho.length) {
+    out.push({ tom: "ruim", linhas: [
+      `${vermelho.length === 1 ? "1 mês fecha" : `${vermelho.length} meses fecham`} no vermelho: ${vermelho.map((x) => mesCurto(x.mes + "-01")).join(", ")}.`,
+      `O pior é ${mesCurto(vermelho.reduce((a, x) => (x.sobra < a.sobra ? x : a)).mes + "-01")}, com ${b(Math.abs(Math.min(...vermelho.map((x) => x.sobra))))} faltando.`,
+    ] });
+  }
+
+  // Onde dá para cortar: os dois maiores gastos que dependem de escolha.
+  const flex = ["lazer", "mercado", "transporte", "assinaturas", "outros"].map((k) => [k, cat.get(k) || 0]).filter(([, v]) => v > 0).sort((a, b2) => b2[1] - a[1]).slice(0, 2);
+  if (flex.length) {
+    const corte = flex.reduce((s, [, v]) => s + v, 0) * 0.1 / n;
+    out.push({ tom: "info", linhas: [
+      `Se gastarem 10% menos em ${flex.map(([k]) => catInfo("despesa", k).nome.toLowerCase()).join(" e ")}, sobram mais ${b(corte)} por mês.`,
+      `Em um ano, são ${b(corte * 12)} a mais para guardar.`,
+    ] });
+  }
+
+  const assin = cat.get("assinaturas") || 0;
+  if (assin > 0) out.push({ tom: "info", linhas: [`Assinaturas somam ${b(assin / n)} por mês, ${b((assin / n) * 12)} por ano.`, "Vale revisar as que ninguém usa."] });
+
+  // Projeção.
+  const proj = [];
+  if (ano >= Number(hoje().slice(0, 4))) proj.push(`Com o que já está lançado, a conta termina ${ano} com ${b(saldoAte(`${ano}-12-31`))}.`);
+  const sobraMedia = tot.sobra / n;
+  if (sobraMedia > 0) proj.push(`A sobra média é de ${b(sobraMedia)} por mês. Se ela for para as caixinhas, em 12 meses são ${b(sobraMedia * 12)} a mais guardados.`);
+  for (const c of caixinhasAtivas()) {
+    const p = planoCaixinha(c);
+    if (p.obj && p.falta && p.mensal) proj.push(`${esc(c.nome)}: no ritmo de ${b(p.mensal)} por mês, chega a ${b(p.obj)} em ${mesCurto(p.chegaEm + "-01")}.`);
+  }
+  if (proj.length) out.push({ tom: "info", linhas: proj });
+
+  if (n < 3) out.push({ tom: "", linhas: [`Esta leitura usa ${n} ${n === 1 ? "mês" : "meses"} de lançamentos. Fica mais precisa a cada mês.`] });
+  return out;
+}
 
 // ---------- busca ----------
 
@@ -1348,7 +1904,7 @@ function buscar() {
   alvo.innerHTML = `<div class="nota num">${achados.length} ${achados.length === 1 ? "resultado" : "resultados"}${sai ? ` · ${brl.format(sai)} em saídas` : ""}${ent ? ` · ${brl.format(ent)} em entradas` : ""}</div>` +
     [...porMes.entries()].map(([m, ls]) => `<div class="dia-cab" style="margin-top:14px">${nomeMes.format(deIso(m + "-01"))}</div>
       <div class="lista lista-plana">${ls.map((l) => `<button class="linha-simples ${l.pago && l.data < hoje() ? "baixado" : ""}" data-abrir-lanc="${l.id}">
-        <span class="cat-ic">${catInfo(l.tipo, categoriaDe(l)).icone}</span><span class="desc">${esc(l.descricao)}</span>
+        <span class="cat-ic">${iconeDe(l)}</span><span class="desc">${esc(l.descricao)}</span>
         <span class="num quando">${dataCurta(l.data)}</span><b class="num ${l.tipo === "receita" ? "pos" : ""}">${l.tipo === "receita" ? "+" : "−"} ${brl.format(Number(l.valor))}</b></button>`).join("")}</div>`).join("");
 }
 $("busca-q").addEventListener("input", () => { clearTimeout(buscaTimer); buscaTimer = setTimeout(buscar, 120); });
@@ -1602,7 +2158,7 @@ $("casa-sair").onclick = () => sb.auth.signOut();
 $("btn-exportar").onclick = () => {
   const cab = ["Data", "Descrição", "Tipo", "Categoria", "Valor", "Pago", "Recorrente", "Parcela", "Saldo"];
   const linhas = estado.lancs.map((l) => [
-    l.data.split("-").reverse().join("/"), l.descricao, rotTipo(l.tipo), catInfo(l.tipo, categoriaDe(l)).nome,
+    l.data.split("-").reverse().join("/"), l.descricao, rotTipo(l.tipo), nomeCatDe(l),
     mostrarValor(Number(l.valor)), l.pago ? "Sim" : "Não", l.recorrente ? "Sim" : "",
     l.parcelas ? `${l.parcela}/${l.parcelas}` : "", mostrarValor(estado.saldoApos.get(l.id)),
   ]);
