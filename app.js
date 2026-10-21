@@ -9,6 +9,7 @@ const $ = (id) => document.getElementById(id);
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const nomeMes = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" });
 const nomeDia = new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
+const nomeDoMes = (mes) => new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(deIso(mes.slice(0, 7) + "-01"));
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
 const IC = {
@@ -19,6 +20,67 @@ const IC = {
   repetir: '<svg class="ic" viewBox="0 0 24 24"><path d="M17 2.5l3 3-3 3"/><path d="M4 11.5v-1a5 5 0 015-5h11"/><path d="M7 21.5l-3-3 3-3"/><path d="M20 12.5v1a5 5 0 01-5 5H4"/></svg>',
   mais: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
 };
+
+// ---------- categorias ----------
+
+const svg = (d) => `<svg class="ic" viewBox="0 0 24 24">${d}</svg>`;
+const CATS = {
+  despesa: [
+    ["casa", "Casa e contas", '<path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-6h4v6"/>'],
+    ["mercado", "Mercado", '<circle cx="9" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/><path d="M3 4h2.2l2.4 11h10.6l2-8H6.3"/>'],
+    ["transporte", "Transporte", '<rect x="5" y="3.5" width="14" height="14" rx="2.5"/><path d="M5 11h14M8 20.5v-3M16 20.5v-3M8.5 14.5h.01M15.5 14.5h.01"/>'],
+    ["carro", "Carro", '<path d="M4 15l1.6-5.2a2 2 0 011.9-1.4h9a2 2 0 011.9 1.4L20 15"/><rect x="3" y="15" width="18" height="4" rx="1.5"/><path d="M6.5 19v1.5M17.5 19v1.5"/>'],
+    ["educacao", "Educação", '<path d="M4 19.5V5a2 2 0 012-2h14v16H6a2 2 0 00-2 2.5z"/><path d="M8 7.5h8"/>'],
+    ["saude", "Saúde", '<path d="M12 20s-7-4.4-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.6-7 10-7 10z"/>'],
+    ["assinaturas", "Assinaturas", '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z"/>'],
+    ["dividas", "Empréstimos e cartões", '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18M7 15h4"/>'],
+    ["lazer", "Presentes e lazer", '<rect x="4" y="9" width="16" height="11" rx="1.5"/><path d="M3 9h18M12 9v11"/><path d="M12 9c-1.5-3.5-5.5-3.5-5.5-1S10 9 12 9zm0 0c1.5-3.5 5.5-3.5 5.5-1S14 9 12 9z"/>'],
+    ["outros", "Outros", '<circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/>'],
+  ],
+  receita: [
+    ["salario", "Salário e benefícios", '<rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M9 7V5.5A1.5 1.5 0 0110.5 4h3A1.5 1.5 0 0115 5.5V7M3 12.5h18"/>'],
+    ["extra", "Renda extra", '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>'],
+    ["reembolso", "Reembolsos e estornos", '<path d="M3 12a9 9 0 103-6.7L3 8"/><path d="M3 3v5h5"/>'],
+    ["emprestimo", "Empréstimos recebidos", '<circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 10v5h5"/>'],
+    ["ajuste", "Saldo e ajustes", '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/>'],
+    ["outros", "Outros", '<circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/>'],
+  ],
+};
+const catInfo = (tipo, chave) => {
+  const c = CATS[tipo].find((x) => x[0] === chave) || CATS[tipo][CATS[tipo].length - 1];
+  return { chave: c[0], nome: c[1], icone: svg(c[2]) };
+};
+
+// A ordem importa: "Carregar carro" é carro antes de ser transporte.
+const REGRAS = {
+  despesa: [
+    [/aluguel|agua|energia|\bluz\b|internet|condominio|\bgas\b|celular|iptu/, "casa"],
+    [/mercado|feira|padaria|acougue|hortifruti|atacad/, "mercado"],
+    [/multa|carro|byd|ipva|combust|gasolina|sem parar|estaciona|oficina|pedagio/, "carro"],
+    [/transporte|onibus|blablacar|metro|locomo|uber|\b99\b/, "transporte"],
+    [/escola|faculdade|curso|material escolar|mensalidade/, "educacao"],
+    [/fono|medic|farmacia|remedio|dentista|consulta|exame|plano de saude|terapia|psico/, "saude"],
+    [/spotify|netflix|crunchyroll|prime|disney|hbo|\bmax\b|youtube|icloud|assinatura|globoplay|deezer/, "assinaturas"],
+    [/emprestimo|fatura|cartao|nubank|picpay|divida|pagamento|parcela/, "dividas"],
+    [/presente|niver|aniversario|almoco|jantar|restaurante|lanche|cinema|perfume|festa|viagem|passeio|ifood/, "lazer"],
+  ],
+  receita: [
+    [/salario|decimo|\bvale\b|ferias|ticket|beneficio|\bplr\b/, "salario"],
+    [/reembolso|estorno|devolu/, "reembolso"],
+    [/emprestimo/, "emprestimo"],
+    [/saldo|ajuste/, "ajuste"],
+    [/uber|\b99\b|freela|corrida|venda|pagamento|bico|extra/, "extra"],
+  ],
+};
+const normalizar = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+function adivinharCategoria(descricao, tipo) {
+  const d = normalizar(descricao);
+  const aprendida = estado.aprendidas.get(tipo + "|" + d);
+  if (aprendida) return aprendida;
+  for (const [re, cat] of REGRAS[tipo]) if (re.test(d)) return cat;
+  return "outros";
+}
+const categoriaDe = (l) => (l.categoria && CATS[l.tipo].some((c) => c[0] === l.categoria) ? l.categoria : adivinharCategoria(l.descricao, l.tipo));
 
 const estado = {
   sessao: null,
@@ -32,6 +94,11 @@ const estado = {
   canal: null,
   membros: new Map(), // user_id -> { nome, email }
   histGrupos: [],
+  aprendidas: new Map(), // "tipo|descrição" -> categoria escolhida por vocês
+  temCategoria: false,   // banco já tem a coluna categoria (03_categorias_series.sql)
+  seriesDb: null,        // grupo -> linha da tabela series; null se a tabela não existe
+  filtroCat: null,
+  categoriaSel: null,
 };
 
 // ---------- datas e números ----------
@@ -136,6 +203,7 @@ async function iniciar() {
 }
 
 function sairLimpo() {
+  limparCache();
   if (estado.canal) { sb.removeChannel(estado.canal); estado.canal = null; }
   estado.casa = null;
   estado.lancs = [];
@@ -143,17 +211,51 @@ function sairLimpo() {
   mostrarTela("tela-login");
 }
 
+// Última cópia dos dados no aparelho: abre na hora e funciona sem internet (só leitura).
+const CHAVE_CACHE = "fin-cache-v1";
+function lerCache() {
+  try { const c = JSON.parse(localStorage.getItem(CHAVE_CACHE)); return c && c.user === estado.sessao?.user?.id ? c : null; } catch (e) { return null; }
+}
+function gravarCache() {
+  try {
+    localStorage.setItem(CHAVE_CACHE, JSON.stringify({
+      user: estado.sessao?.user?.id, casa: estado.casa, lancs: estado.lancs, membros: [...estado.membros.entries()],
+      series: estado.seriesDb ? [...estado.seriesDb.entries()] : null, quando: Date.now(),
+    }));
+  } catch (e) { /* armazenamento cheio ou bloqueado: segue sem cache */ }
+}
+function limparCache() { try { localStorage.removeItem(CHAVE_CACHE); } catch (e) {} }
+
 async function abrirCasa() {
   if (!estado.sessao) { mostrarTela("tela-login"); return; }
-  const { data, error } = await sb.from("membros").select("casa_id, casas(id, nome, codigo)").limit(1);
-  if (error) { avisar(msgErro(error)); mostrarTela("tela-casa"); return; }
-  if (!data.length) { mostrarTela("tela-casa"); return; }
-  estado.casa = data[0].casas;
   estado.mes = estado.mes || hoje().slice(0, 7);
+  const cache = lerCache();
+  if (cache) {
+    estado.casa = cache.casa;
+    estado.membros = new Map(cache.membros);
+    estado.seriesDb = cache.series ? new Map(cache.series) : null;
+    mostrarTela("tela-app");
+    definirLancs(cache.lancs);
+  }
+  const { data, error } = await sb.from("membros").select("casa_id, casas(id, nome, codigo)").limit(1);
+  if (error) {
+    if (cache) { avisar(`Sem internet. Mostrando os dados de ${quando(cache.quando)}.`); return; }
+    avisar(msgErro(error)); mostrarTela("tela-casa"); return;
+  }
+  if (!data.length) { limparCache(); mostrarTela("tela-casa"); return; }
+  estado.casa = data[0].casas;
   mostrarTela("tela-app");
   await carregarMembros();
   await carregar();
   assinarMudancas();
+  manterSeries();
+}
+
+// Gera os próximos meses das contas fixas "sem data para acabar".
+async function manterSeries() {
+  if (!estado.seriesDb || ![...estado.seriesDb.values()].some((s) => s.sem_fim)) return;
+  const { data, error } = await sb.rpc("manter_series", { p_casa: estado.casa.id });
+  if (!error && data > 0) await carregar();
 }
 
 async function carregarMembros() {
@@ -181,7 +283,10 @@ async function carregar() {
     todos.push(...data);
     if (data.length < 1000) break;
   }
+  const s = await sb.from("series").select("*").eq("casa_id", estado.casa.id);
+  estado.seriesDb = s.error ? null : new Map(s.data.map((x) => [x.grupo, x]));
   definirLancs(todos);
+  gravarCache();
 }
 
 function definirLancs(lista) {
@@ -191,6 +296,12 @@ function definirLancs(lista) {
     (a.tipo === b.tipo ? 0 : a.tipo === "receita" ? -1 : 1) ||
     a.criado_em.localeCompare(b.criado_em));
   estado.lancs = lista;
+  if (lista.length) estado.temCategoria = "categoria" in lista[0];
+  // A categoria que vocês escolheram por último para cada descrição vale para as próximas.
+  estado.aprendidas = new Map();
+  for (const l of [...lista].sort((a, b) => (a.atualizado_em || "").localeCompare(b.atualizado_em || ""))) {
+    if (l.categoria) estado.aprendidas.set(l.tipo + "|" + normalizar(l.descricao), l.categoria);
+  }
   estado.saldoApos = new Map();
   let s = 0;
   for (const l of lista) { s += sinal(l); estado.saldoApos.set(l.id, r2(s)); }
@@ -226,14 +337,26 @@ function series() {
     for (let i = 1; i < ls.length; i++) gaps.push((deIso(ls[i].data) - deIso(ls[i - 1].data)) / 864e5);
     gaps.sort((a, b) => a - b);
     const mediana = gaps.length ? gaps[Math.floor(gaps.length / 2)] : 30;
-    return { grupo, ls, semanal: mediana > 0 && mediana <= 10, ultimo: ls[ls.length - 1] };
+    return { grupo, ls, semanal: mediana > 0 && mediana <= 10, ultimo: ls[ls.length - 1], semFim: !!estado.seriesDb?.get(grupo)?.sem_fim };
   }).sort((a, b) => a.ultimo.data.localeCompare(b.ultimo.data));
 }
 
 // Só as que ainda estão valendo e acabam nos próximos 2 meses; as que já acabaram foram encerradas de propósito.
 function seriesAcabando() {
   const hj = hoje(), ate = somarDias(hj, 62);
-  return series().filter((s) => s.ultimo.data >= hj && s.ultimo.data <= ate);
+  return series().filter((s) => !s.semFim && s.ultimo.data >= hj && s.ultimo.data <= ate);
+}
+
+async function definirSemFim(s, ligar) {
+  const r = ligar
+    ? await sb.from("series").upsert({ grupo: s.grupo, casa_id: estado.casa.id, passo: s.semanal ? "semana" : "mes", sem_fim: true, gerado_ate: s.ultimo.data })
+    : await sb.from("series").update({ sem_fim: false }).eq("grupo", s.grupo);
+  if (r.error) throw r.error;
+  if (ligar) {
+    const g = await sb.rpc("manter_series", { p_casa: estado.casa.id });
+    if (g.error) throw g.error;
+  }
+  await carregar();
 }
 
 function proximasDaSerie(s, n = 12) {
@@ -242,6 +365,7 @@ function proximasDaSerie(s, n = 12) {
     id: crypto.randomUUID(), casa_id: estado.casa.id, descricao: u.descricao, tipo: u.tipo, valor: u.valor,
     data: s.semanal ? somarDias(u.data, 7 * (i + 1)) : somarMeses(u.data, i + 1),
     pago: false, recorrente: true, grupo: s.grupo,
+    ...(estado.temCategoria ? { categoria: categoriaDe(u) } : {}),
   }));
 }
 
@@ -255,16 +379,31 @@ async function estenderSeries(lista) {
 function renderSeries() {
   const todas = series(), acabando = new Set(seriesAcabando().map((s) => s.grupo));
   const n = acabando.size;
+  const podeSemFim = !!estado.seriesDb;
   $("lista-series").innerHTML = (todas.length ? "" : '<div class="vazio">Nenhuma conta fixa ainda.<br>Ao lançar, escolha "Todo mês" em Repetir.</div>') +
+    (podeSemFim && todas.length ? '<p class="nota">Ligue <b>Sempre</b> nas contas que não têm data para acabar: o app cria os próximos meses sozinho.</p>' : "") +
     (n ? `<button class="btn" type="button" data-estender-todas style="margin-bottom:10px">${IC.repetir} Repetir as ${n} que estão acabando</button>` : "") +
     todas.map((s) => `<div class="serie">
       <div>
         <div class="desc">${esc(s.ultimo.descricao)}</div>
-        <small class="num">${s.semanal ? "toda semana" : "todo mês"} · ${brl.format(Number(s.ultimo.valor))} · ${acabando.has(s.grupo) ? "<b style='color:var(--aviso-atencao)'>acaba</b>" : s.ultimo.data < hoje() ? "acabou" : "vai até"} ${dataMedia(s.ultimo.data)}</small>
+        <small class="num">${s.semanal ? "toda semana" : "todo mês"} · ${brl.format(Number(s.ultimo.valor))} · ${s.semFim ? "sem data para acabar" : acabando.has(s.grupo) ? `<b style='color:var(--aviso-atencao)'>acaba</b> ${dataMedia(s.ultimo.data)}` : `${s.ultimo.data < hoje() ? "acabou" : "vai até"} ${dataMedia(s.ultimo.data)}`}</small>
       </div>
-      <button class="btn sec" type="button" data-estender="${s.grupo}">+12</button>
+      ${s.semFim ? "" : `<button class="btn sec" type="button" data-estender="${s.grupo}" aria-label="Repetir mais 12 vezes">+12</button>`}
+      ${podeSemFim ? `<label class="interruptor" title="Repetir sempre"><input type="checkbox" data-sem-fim="${s.grupo}" ${s.semFim ? "checked" : ""}><span>Sempre</span></label>` : ""}
     </div>`).join("");
 }
+
+$("lista-series").addEventListener("change", async (e) => {
+  const c = e.target.closest("[data-sem-fim]");
+  if (!c) return;
+  const s = series().find((x) => x.grupo === c.dataset.semFim);
+  c.disabled = true;
+  try {
+    await definirSemFim(s, c.checked);
+    renderSeries();
+    avisar(c.checked ? `"${s.ultimo.descricao}" agora se repete sempre.` : `"${s.ultimo.descricao}" parou de se repetir sozinha.`);
+  } catch (err) { c.checked = !c.checked; c.disabled = false; avisar(msgErro(err)); }
+});
 
 $("lista-series").addEventListener("click", async (e) => {
   const todas = e.target.closest("[data-estender-todas]");
@@ -363,7 +502,7 @@ function curvaHtml(mes, pts, hj) {
 function render() {
   const mes = estado.mes, hj = hoje(), mesAtual = hj.slice(0, 7);
   const tituloMes = nomeMes.format(deIso(mes + "-01"));
-  $("mes-nome").textContent = tituloMes.charAt(0).toUpperCase() + tituloMes.slice(1);
+  $("mes-nome").textContent = (tituloMes.charAt(0).toUpperCase() + tituloMes.slice(1)).replace(" de ", " ");
   $("ir-hoje").hidden = mes === mesAtual;
   const fim = fimDoMes(mes);
   const doMes = estado.lancs.filter((l) => l.data.startsWith(mes));
@@ -411,7 +550,11 @@ function render() {
     }
   }
 
-  const chip = (v, t) => `<button class="chip ${estado.filtro === v ? "ativo" : ""}" data-filtro="${v}">${t}</button>`;
+  const chip = (v, t) => `<button class="chip ${!estado.filtroCat && estado.filtro === v ? "ativo" : ""}" data-filtro="${v}">${t}</button>`;
+  const chipCat = estado.filtroCat
+    ? (() => { const [tipo, chave] = estado.filtroCat.split("|"); const c = catInfo(tipo, chave);
+        return `<button class="chip ativo chip-cat" data-limpar-cat aria-label="Tirar filtro ${esc(c.nome)}">${c.icone}${esc(c.nome)}<svg class="ic" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button>`; })()
+    : "";
 
   $("conteudo").innerHTML = `<div class="grade">
     <section class="col-resumo">
@@ -424,10 +567,11 @@ function render() {
         <div><span>Entradas do mês</span><b class="num" style="color:var(--verde)">${brl.format(entradas)}</b></div>
         <div><span>Saídas do mês</span><b class="num" style="color:var(--vermelho)">${brl.format(saidas)}</b></div>
       </div>
+      ${doMes.length ? `<button class="linha-resumo" data-abrir-resumo>${svg('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>')}<span>Para onde foi o dinheiro em ${nomeDoMes(mes)}</span>${IC.ir}</button>` : ""}
       ${avisos.length ? `<div class="avisos">${avisos.join("")}</div>` : ""}
     </section>
     <section class="col-extrato">
-      <nav class="filtros" aria-label="Filtro">${chip("todos", "Todos")}${chip("pendentes", "Sem check")}${chip("despesas", "Despesas")}${chip("receitas", "Receitas")}</nav>
+      <nav class="filtros" aria-label="Filtro">${chipCat}${chip("todos", "Todos")}${chip("pendentes", "Sem check")}${chip("despesas", "Despesas")}${chip("receitas", "Receitas")}</nav>
       ${extratoHtml(doMes, mes, hj)}
     </section>
   </div>`;
@@ -448,6 +592,14 @@ function diasHtml(lista, hj) {
 }
 
 function extratoHtml(doMes, mes, hj) {
+  if (estado.filtroCat) {
+    const [tipo, chave] = estado.filtroCat.split("|");
+    const lista = doMes.filter((l) => l.tipo === tipo && categoriaDe(l) === chave);
+    const total = lista.reduce((s, l) => s + Number(l.valor), 0);
+    return lista.length
+      ? `<div class="nota num" style="margin:14px 4px 0">${lista.length} ${lista.length === 1 ? "lançamento" : "lançamentos"} · ${brl.format(total)} em ${nomeDoMes(mes)}</div>${diasHtml(lista, hj)}`
+      : '<div class="vazio">Nada nessa categoria neste mês.</div>';
+  }
   if (estado.filtro !== "todos") {
     const f = { pendentes: (l) => !l.pago, despesas: (l) => l.tipo === "despesa", receitas: (l) => l.tipo === "receita" }[estado.filtro];
     const lista = doMes.filter(f);
@@ -496,6 +648,7 @@ function itemHtml(l, hj, op = {}) {
   return `<div class="item ${baixado ? "baixado" : ""}">
     <button class="check ${l.pago ? "ok" : ""} ${atrasado ? "atrasado" : ""}" data-check="${l.id}" aria-pressed="${l.pago}" aria-label="${esc(l.descricao)}: ${l.pago ? `tirar check` : `marcar como ${feito}`}"><span class="bola">${IC.check}</span></button>
     <button class="corpo" data-editar="${l.id}">
+      <span class="cat-ic" title="${esc(catInfo(l.tipo, categoriaDe(l)).nome)}">${catInfo(l.tipo, categoriaDe(l)).icone}</span>
       <div class="txt">
         <div class="desc">${esc(l.descricao)}</div>
         ${tags.length ? `<div class="meta">${tags.join("")}</div>` : ""}
@@ -510,7 +663,9 @@ function itemHtml(l, hj, op = {}) {
 
 $("conteudo").addEventListener("click", async (ev) => {
   const t = (sel) => ev.target.closest(sel);
-  if (t("[data-filtro]")) { estado.filtro = t("[data-filtro]").dataset.filtro; render(); return; }
+  if (t("[data-filtro]")) { estado.filtro = t("[data-filtro]").dataset.filtro; estado.filtroCat = null; render(); return; }
+  if (t("[data-limpar-cat]")) { estado.filtroCat = null; render(); return; }
+  if (t("[data-abrir-resumo]")) { abrirResumo(); return; }
   if (t("[data-check]")) { await alternarPago(t("[data-check]").dataset.check); return; }
   if (t("[data-editar]")) { abrirLanc(estado.lancs.find((l) => l.id === t("[data-editar]").dataset.editar)); return; }
   if (t("[data-alternar-passado]")) { estado.verPassado = !estado.verPassado; render(); return; }
@@ -612,7 +767,7 @@ window.addEventListener("scroll", () => $("topo").classList.toggle("rolou", wind
 
 // ---------- painéis ----------
 
-const PAINEIS = ["painel-lanc", "painel-ajustes", "painel-historico", "painel-series"];
+const PAINEIS = ["painel-lanc", "painel-ajustes", "painel-historico", "painel-series", "painel-resumo", "painel-busca"];
 function abrirPainel(p) {
   fecharPaineis(true);
   $("fundo").hidden = false;
@@ -696,11 +851,37 @@ arrastavel($("painel-confirma"), () => fecharConfirma(false));
 // ---------- lançamento ----------
 
 let tipoSel = "despesa";
+let catManual = false; // a pessoa escolheu a categoria na mão; para de adivinhar
 function definirTipo(t) {
+  const mudou = t !== tipoSel;
   tipoSel = t;
   for (const b of $("lanc-tipo").children) b.classList.toggle("ativo", b.dataset.tipo === t);
   $("lanc-pago-rot").textContent = t === "receita" ? "Já foi recebido" : "Já foi pago";
+  if (mudou || !CATS[t].some((c) => c[0] === estado.categoriaSel)) { catManual = false; adivinharNoForm(); }
+  renderCats();
 }
+function adivinharNoForm() {
+  if (catManual) return;
+  const d = $("lanc-desc").value.trim();
+  estado.categoriaSel = d ? adivinharCategoria(d, tipoSel) : null;
+  renderCats();
+}
+function renderCats() {
+  const caixa = $("lanc-cats");
+  caixa.innerHTML = CATS[tipoSel].map(([chave, nome, d]) =>
+    `<button type="button" class="cat ${estado.categoriaSel === chave ? "ativo" : ""}" data-cat="${chave}" role="radio" aria-checked="${estado.categoriaSel === chave}">${svg(d)}<span>${nome}</span></button>`).join("");
+  // Traz a categoria escolhida para a parte visível da fila.
+  const ativo = caixa.querySelector(".cat.ativo");
+  if (ativo) caixa.scrollTo({ left: Math.max(0, ativo.offsetLeft - caixa.offsetLeft - 18), behavior: "smooth" });
+}
+$("lanc-cats").onclick = (e) => {
+  const b = e.target.closest("[data-cat]");
+  if (!b) return;
+  estado.categoriaSel = b.dataset.cat;
+  catManual = true;
+  renderCats();
+};
+$("lanc-desc").addEventListener("input", adivinharNoForm);
 $("lanc-tipo").onclick = (e) => { const b = e.target.closest("[data-tipo]"); if (b) definirTipo(b.dataset.tipo); };
 
 function atualizarPrevia() {
@@ -710,7 +891,11 @@ function atualizarPrevia() {
   const p = $("lanc-previa");
   p.hidden = v === "nao" || !data;
   if (p.hidden) return;
-  if (v === "mensal") {
+  const semFim = v === "mensal" && $("lanc-semfim").checked;
+  $("bloco-qtd-meses").hidden = semFim;
+  if (semFim) {
+    p.textContent = `Cria os próximos 12 meses agora (até ${dataMedia(somarMeses(data, 11))}) e continua criando sozinho.`;
+  } else if (v === "mensal") {
     const n = Math.min(60, Math.max(2, parseInt($("lanc-meses").value, 10) || 12));
     p.textContent = `Cria ${n} lançamentos, de ${dataMedia(data)} a ${dataMedia(somarMeses(data, n - 1))}.`;
   } else {
@@ -720,7 +905,8 @@ function atualizarPrevia() {
       : "A parcela atual precisa estar entre 1 e o total.";
   }
 }
-for (const id of ["lanc-repetir", "lanc-meses", "lanc-parc", "lanc-parcs"]) $(id).addEventListener("input", atualizarPrevia);
+for (const id of ["lanc-repetir", "lanc-meses", "lanc-parc", "lanc-parcs", "lanc-semfim"]) $(id).addEventListener("input", atualizarPrevia);
+$("lanc-semfim").addEventListener("change", atualizarPrevia);
 
 $("lanc-data").addEventListener("change", () => {
   if (!estado.editando) $("lanc-pago").checked = $("lanc-data").value <= hoje();
@@ -732,7 +918,11 @@ $("lanc-desc").addEventListener("change", () => {
   if (estado.editando || $("lanc-valor").value.trim()) return;
   const d = $("lanc-desc").value.trim().toLowerCase();
   const ultimo = [...estado.lancs].reverse().find((l) => l.descricao.toLowerCase() === d);
-  if (ultimo) { definirTipo(ultimo.tipo); $("lanc-valor").value = mostrarValor(Number(ultimo.valor)); }
+  if (ultimo) {
+    definirTipo(ultimo.tipo);
+    $("lanc-valor").value = mostrarValor(Number(ultimo.valor));
+    if (!catManual) { estado.categoriaSel = categoriaDe(ultimo); renderCats(); }
+  }
 });
 
 function preencherSugestoes() {
@@ -747,9 +937,14 @@ function abrirLanc(l, padrao = {}) {
   preencherSugestoes();
   $("lanc-erro").textContent = "";
   $("lanc-titulo").textContent = l ? "Editar lançamento" : "Novo lançamento";
-  definirTipo(l ? l.tipo : padrao.tipo || "despesa");
   $("lanc-valor").value = l ? mostrarValor(Number(l.valor)) : "";
   $("lanc-desc").value = l ? l.descricao : "";
+  tipoSel = l ? l.tipo : padrao.tipo || "despesa";
+  estado.categoriaSel = l ? categoriaDe(l) : null;
+  catManual = !!l;
+  definirTipo(tipoSel);
+  $("lanc-semfim").checked = false;
+  $("bloco-semfim").hidden = !estado.seriesDb;
   const dataPadrao = padrao.data || (estado.mes === hoje().slice(0, 7) ? hoje() : estado.mes + "-01");
   $("lanc-data").value = l ? l.data : dataPadrao;
   $("lanc-pago").checked = l ? l.pago : dataPadrao <= hoje();
@@ -764,7 +959,7 @@ function abrirLanc(l, padrao = {}) {
   $("lanc-serie").checked = false;
   $("lanc-acoes").hidden = !l;
   $("lanc-apagar-serie").hidden = !temSerie;
-  $("lanc-estender").hidden = !(temSerie && l.recorrente);
+  $("lanc-estender").hidden = !(temSerie && l.recorrente && !estado.seriesDb?.get(l.grupo)?.sem_fim);
   $("lanc-hist").hidden = !l;
   if (l) carregarHistoricoDe(l);
   abrirPainel($("painel-lanc"));
@@ -786,8 +981,9 @@ $("painel-lanc").addEventListener("submit", async (ev) => {
   btn.disabled = true;
   try {
     const l = estado.editando;
+    const cat = estado.temCategoria ? { categoria: estado.categoriaSel || adivinharCategoria(descricao, tipoSel) } : {};
     if (l) {
-      const campos = { descricao, tipo: tipoSel, valor };
+      const campos = { descricao, tipo: tipoSel, valor, ...cat };
       const naSerie = l.grupo && $("lanc-serie").checked;
       const antes = estado.lancs.filter((x) => x.id === l.id || (naSerie && x.grupo === l.grupo && x.data > l.data)).map((x) => ({ ...x }));
       let r = await sb.from("lancamentos").update({ ...campos, data, pago: $("lanc-pago").checked }).eq("id", l.id);
@@ -798,12 +994,13 @@ $("painel-lanc").addEventListener("submit", async (ev) => {
       }
       avisar(antes.length > 1 ? `${antes.length} lançamentos alterados.` : "Alterado.", () => regravar(antes));
     } else {
-      const base = { casa_id: estado.casa.id, descricao, tipo: tipoSel, valor };
+      const base = { casa_id: estado.casa.id, descricao, tipo: tipoSel, valor, ...cat };
       const pagoPrimeiro = $("lanc-pago").checked;
       const rep = $("lanc-repetir").value;
+      const semFim = rep === "mensal" && $("lanc-semfim").checked && !!estado.seriesDb;
       let linhas;
       if (rep === "mensal") {
-        const n = Math.min(60, Math.max(2, parseInt($("lanc-meses").value, 10) || 12));
+        const n = semFim ? 12 : Math.min(60, Math.max(2, parseInt($("lanc-meses").value, 10) || 12));
         const grupo = crypto.randomUUID();
         linhas = Array.from({ length: n }, (_, i) => ({ ...base, data: somarMeses(data, i), pago: i === 0 && pagoPrimeiro, recorrente: true, grupo }));
       } else if (rep === "parcelado") {
@@ -818,9 +1015,17 @@ $("painel-lanc").addEventListener("submit", async (ev) => {
       for (const x of linhas) x.id = crypto.randomUUID();
       const { error } = await sb.from("lancamentos").insert(linhas);
       if (error) throw error;
+      if (semFim) {
+        const r = await sb.from("series").insert({ grupo: linhas[0].grupo, casa_id: estado.casa.id, passo: "mes", sem_fim: true, gerado_ate: linhas[linhas.length - 1].data });
+        if (r.error) throw r.error;
+      }
       vibrar(12);
       const ids = linhas.map((x) => x.id);
-      avisar(linhas.length > 1 ? `${linhas.length} lançamentos criados.` : "Lançado.", () => apagarIds(ids));
+      const grupoNovo = semFim ? linhas[0].grupo : null;
+      avisar(semFim ? "Conta fixa criada, sem data para acabar." : linhas.length > 1 ? `${linhas.length} lançamentos criados.` : "Lançado.", async () => {
+        if (grupoNovo) await sb.from("series").delete().eq("grupo", grupoNovo);
+        await apagarIds(ids);
+      });
       estado.mes = data.slice(0, 7);
     }
     fecharPaineis();
@@ -850,11 +1055,20 @@ $("lanc-apagar-serie").onclick = async () => {
   const ok = await confirmar(`Apagar ${antes.length} lançamentos?`,
     `"${l.descricao}" de ${dataMedia(l.data)} até ${dataMedia(antes[antes.length - 1].data)}. Dá para desfazer logo depois.`);
   if (!ok) return;
+  // Sem isso, uma conta "sem data para acabar" seria recriada na próxima abertura.
+  const serieAntes = estado.seriesDb?.get(l.grupo);
+  if (serieAntes?.sem_fim) {
+    const r = await sb.from("series").update({ sem_fim: false }).eq("grupo", l.grupo);
+    if (r.error) return avisar(msgErro(r.error));
+  }
   const { error } = await sb.from("lancamentos").delete().eq("grupo", l.grupo).gte("data", l.data);
   if (error) return avisar(msgErro(error));
   fecharPaineis();
   await carregar();
-  avisar(`${antes.length} apagados.`, () => regravar(antes));
+  avisar(`${antes.length} apagados.`, async () => {
+    await regravar(antes);
+    if (serieAntes?.sem_fim) await sb.from("series").update({ sem_fim: true }).eq("grupo", l.grupo);
+  });
 };
 
 $("lanc-estender").onclick = async () => {
@@ -868,6 +1082,120 @@ $("lanc-estender").onclick = async () => {
     avisar(`Repetido até ${dataMedia(estado.lancs.find((x) => x.id === ids[ids.length - 1])?.data || s.ultimo.data)}.`, () => apagarIds(ids));
   } catch (e) { avisar(msgErro(e)); }
 };
+
+// ---------- resumo do mês ----------
+
+function totaisPorCategoria(lista, tipo) {
+  const m = new Map();
+  for (const l of lista) if (l.tipo === tipo) { const k = categoriaDe(l); m.set(k, (m.get(k) || 0) + Number(l.valor)); }
+  return [...m.entries()].sort((a, b) => b[1] - a[1]);
+}
+
+function barrasHtml(tipo, doMes, doAnt) {
+  const linhas = totaisPorCategoria(doMes, tipo);
+  if (!linhas.length) return '<div class="nota">Nada neste mês.</div>';
+  const ant = new Map(totaisPorCategoria(doAnt, tipo));
+  const total = linhas.reduce((s, [, v]) => s + v, 0);
+  const max = Math.max(...linhas.map(([, v]) => v), ...ant.values());
+  return linhas.map(([k, v]) => {
+    const c = catInfo(tipo, k), va = ant.get(k);
+    return `<button class="barra" data-cat-filtro="${tipo}|${k}">
+      <span class="cat-ic">${c.icone}</span>
+      <span class="barra-corpo">
+        <span class="barra-topo"><span>${esc(c.nome)}</span><b class="num">${brl.format(v)}</b></span>
+        <span class="trilho"><span class="enche ${tipo}" style="width:${((v / max) * 100).toFixed(1)}%"></span>${va ? `<i class="fantasma" style="left:${((va / max) * 100).toFixed(1)}%"></i>` : ""}</span>
+        <span class="barra-rodape num"><span>${Math.round((v / total) * 100)}% do total</span>${va ? `<span>mês anterior ${brl.format(va)}</span>` : ""}</span>
+      </span>
+    </button>`;
+  }).join("");
+}
+
+function abrirResumo() {
+  const mes = estado.mes, ant = somarMeses(mes + "-01", -1).slice(0, 7);
+  const nome = nomeDoMes(mes), nomeAnt = nomeDoMes(ant);
+  const doMes = estado.lancs.filter((l) => l.data.startsWith(mes));
+  const doAnt = estado.lancs.filter((l) => l.data.startsWith(ant));
+  const soma = (ls, t) => ls.filter((l) => l.tipo === t).reduce((s, l) => s + Number(l.valor), 0);
+  const ent = soma(doMes, "receita"), sai = soma(doMes, "despesa"), saiAnt = soma(doAnt, "despesa");
+  const sobra = r2(ent - sai);
+  const pend = doMes.filter((l) => !l.pago);
+  const pPagar = soma(pend, "despesa"), pReceber = soma(pend, "receita");
+
+  const frases = [`Em ${nome} entram <b class="num">${brl.format(ent)}</b> e saem <b class="num">${brl.format(sai)}</b>.`,
+    `${sobra >= 0 ? "Sobram" : "Faltam"} <b class="num" style="color:var(${sobra >= 0 ? "--verde" : "--vermelho"})">${brl.format(Math.abs(sobra))}</b> no mês.`];
+  if (saiAnt > 0) {
+    const pct = Math.round(((sai - saiAnt) / saiAnt) * 100);
+    frases.push(pct === 0 ? `As saídas estão iguais às de ${nomeAnt}.` : `As saídas estão ${Math.abs(pct)}% ${pct > 0 ? "acima" : "abaixo"} de ${nomeAnt} (${brl.format(saiAnt)}).`);
+  }
+  if (pend.length) frases.push(`Ainda sem check: ${[pPagar && `${brl.format(pPagar)} a pagar`, pReceber && `${brl.format(pReceber)} a receber`].filter(Boolean).join(" e ")}.`);
+
+  const maiores = doMes.filter((l) => l.tipo === "despesa").sort((a, b) => b.valor - a.valor).slice(0, 5);
+  $("resumo-tit").textContent = `Resumo de ${nomeMes.format(deIso(mes + "-01"))}`;
+  $("resumo-corpo").innerHTML = `
+    <div class="frases">${frases.map((f) => `<p>${f}</p>`).join("")}</div>
+    <h3 class="sub">Saídas por categoria</h3>
+    ${barrasHtml("despesa", doMes, doAnt)}
+    ${doAnt.length ? '<div class="nota"><i class="fantasma-leg"></i> traço = mesma categoria no mês anterior</div>' : ""}
+    <h3 class="sub">Entradas por categoria</h3>
+    ${barrasHtml("receita", doMes, doAnt)}
+    ${maiores.length ? `<h3 class="sub">Maiores saídas</h3><div class="lista lista-plana">${maiores.map((l) => `<button class="linha-simples" data-abrir-lanc="${l.id}">
+      <span class="cat-ic">${catInfo(l.tipo, categoriaDe(l)).icone}</span><span class="desc">${esc(l.descricao)}</span>
+      <span class="num quando">${dataCurta(l.data)}</span><b class="num">${brl.format(Number(l.valor))}</b></button>`).join("")}</div>` : ""}
+    <p class="nota">Inclui o que ainda não tem check. Toque numa categoria para ver os lançamentos dela.</p>`;
+  abrirPainel($("painel-resumo"));
+}
+
+$("resumo-corpo").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-cat-filtro]");
+  if (b) {
+    estado.filtroCat = b.dataset.catFiltro;
+    estado.filtro = "todos";
+    fecharPaineis();
+    render();
+    document.querySelector(".col-extrato")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  const a = e.target.closest("[data-abrir-lanc]");
+  if (a) abrirLanc(estado.lancs.find((l) => l.id === a.dataset.abrirLanc));
+});
+
+// ---------- busca ----------
+
+let buscaTimer;
+function buscar() {
+  const q = normalizar($("busca-q").value.trim());
+  const alvo = $("busca-res");
+  if (q.length < 2) { alvo.innerHTML = '<div class="nota">Procure por descrição, categoria ou valor. Ex.: mercado, escola, 1400.</div>'; return; }
+  const achados = estado.lancs.filter((l) =>
+    normalizar(l.descricao).includes(q) ||
+    normalizar(catInfo(l.tipo, categoriaDe(l)).nome).includes(q) ||
+    mostrarValor(Number(l.valor)).replace(/\./g, "").includes(q.replace(/\./g, ""))
+  ).reverse();
+  if (!achados.length) { alvo.innerHTML = '<div class="vazio">Nada encontrado.</div>'; return; }
+  const sai = achados.filter((l) => l.tipo === "despesa").reduce((s, l) => s + Number(l.valor), 0);
+  const ent = achados.filter((l) => l.tipo === "receita").reduce((s, l) => s + Number(l.valor), 0);
+  const porMes = new Map();
+  for (const l of achados.slice(0, 150)) { const m = l.data.slice(0, 7); if (!porMes.has(m)) porMes.set(m, []); porMes.get(m).push(l); }
+  alvo.innerHTML = `<div class="nota num">${achados.length} ${achados.length === 1 ? "resultado" : "resultados"}${sai ? ` · ${brl.format(sai)} em saídas` : ""}${ent ? ` · ${brl.format(ent)} em entradas` : ""}</div>` +
+    [...porMes.entries()].map(([m, ls]) => `<div class="dia-cab" style="margin-top:14px">${nomeMes.format(deIso(m + "-01"))}</div>
+      <div class="lista lista-plana">${ls.map((l) => `<button class="linha-simples ${l.pago && l.data < hoje() ? "baixado" : ""}" data-abrir-lanc="${l.id}">
+        <span class="cat-ic">${catInfo(l.tipo, categoriaDe(l)).icone}</span><span class="desc">${esc(l.descricao)}</span>
+        <span class="num quando">${dataCurta(l.data)}</span><b class="num ${l.tipo === "receita" ? "pos" : ""}">${l.tipo === "receita" ? "+" : "−"} ${brl.format(Number(l.valor))}</b></button>`).join("")}</div>`).join("");
+}
+$("busca-q").addEventListener("input", () => { clearTimeout(buscaTimer); buscaTimer = setTimeout(buscar, 120); });
+$("abrir-busca").onclick = () => {
+  abrirPainel($("painel-busca"));
+  buscar();
+  setTimeout(() => $("busca-q").focus(), 280);
+};
+$("busca-res").addEventListener("click", (e) => {
+  const a = e.target.closest("[data-abrir-lanc]");
+  if (!a) return;
+  const l = estado.lancs.find((x) => x.id === a.dataset.abrirLanc);
+  estado.mes = l.data.slice(0, 7);
+  render();
+  abrirLanc(l);
+});
 
 // ---------- histórico ----------
 
@@ -1035,9 +1363,9 @@ $("btn-sair").onclick = () => sb.auth.signOut();
 $("casa-sair").onclick = () => sb.auth.signOut();
 
 $("btn-exportar").onclick = () => {
-  const cab = ["Data", "Descrição", "Tipo", "Valor", "Pago", "Recorrente", "Parcela", "Saldo"];
+  const cab = ["Data", "Descrição", "Tipo", "Categoria", "Valor", "Pago", "Recorrente", "Parcela", "Saldo"];
   const linhas = estado.lancs.map((l) => [
-    l.data.split("-").reverse().join("/"), l.descricao, rotTipo(l.tipo),
+    l.data.split("-").reverse().join("/"), l.descricao, rotTipo(l.tipo), catInfo(l.tipo, categoriaDe(l)).nome,
     mostrarValor(Number(l.valor)), l.pago ? "Sim" : "Não", l.recorrente ? "Sim" : "",
     l.parcelas ? `${l.parcela}/${l.parcelas}` : "", mostrarValor(estado.saldoApos.get(l.id)),
   ]);
