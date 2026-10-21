@@ -97,6 +97,8 @@ const estado = {
   aprendidas: new Map(), // "tipo|descrição" -> categoria escolhida por vocês
   temCategoria: false,   // banco já tem a coluna categoria (03_categorias_series.sql)
   seriesDb: null,        // grupo -> linha da tabela series; null se a tabela não existe
+  limites: null,         // categoria de despesa -> limite mensal; null se a tabela não existe
+  pendentes: new Set(),  // ids esperando internet
   filtroCat: null,
   categoriaSel: null,
 };
@@ -220,7 +222,8 @@ function gravarCache() {
   try {
     localStorage.setItem(CHAVE_CACHE, JSON.stringify({
       user: estado.sessao?.user?.id, casa: estado.casa, lancs: estado.lancs, membros: [...estado.membros.entries()],
-      series: estado.seriesDb ? [...estado.seriesDb.entries()] : null, quando: Date.now(),
+      series: estado.seriesDb ? [...estado.seriesDb.entries()] : null,
+      limites: estado.limites ? [...estado.limites.entries()] : null, quando: Date.now(),
     }));
   } catch (e) { /* armazenamento cheio ou bloqueado: segue sem cache */ }
 }
@@ -234,8 +237,9 @@ async function abrirCasa() {
     estado.casa = cache.casa;
     estado.membros = new Map(cache.membros);
     estado.seriesDb = cache.series ? new Map(cache.series) : null;
+    estado.limites = cache.limites ? new Map(cache.limites) : null;
     mostrarTela("tela-app");
-    definirLancs(cache.lancs);
+    definirLancs(aplicarFila(cache.lancs));
   }
   const { data, error } = await sb.from("membros").select("casa_id, casas(id, nome, codigo)").limit(1);
   if (error) {
@@ -248,6 +252,7 @@ async function abrirCasa() {
   await carregarMembros();
   await carregar();
   assinarMudancas();
+  await enviarFila();
   manterSeries();
 }
 
@@ -283,11 +288,66 @@ async function carregar() {
     todos.push(...data);
     if (data.length < 1000) break;
   }
-  const s = await sb.from("series").select("*").eq("casa_id", estado.casa.id);
+  const [s, lim] = await Promise.all([
+    sb.from("series").select("*").eq("casa_id", estado.casa.id),
+    sb.from("limites").select("categoria, valor").eq("casa_id", estado.casa.id),
+  ]);
   estado.seriesDb = s.error ? null : new Map(s.data.map((x) => [x.grupo, x]));
-  definirLancs(todos);
+  estado.limites = lim.error ? null : new Map(lim.data.map((x) => [x.categoria, Number(x.valor)]));
+  definirLancs(aplicarFila(todos));
   gravarCache();
 }
+
+// ---------- sem internet: lançar e dar check ficam guardados e vão depois ----------
+
+const CHAVE_FILA = "fin-fila-v1";
+function lerFila() {
+  try { return (JSON.parse(localStorage.getItem(CHAVE_FILA)) || []).filter((o) => o.casa === estado.casa?.id); } catch (e) { return []; }
+}
+function gravarFila(f) { try { localStorage.setItem(CHAVE_FILA, JSON.stringify(f)); } catch (e) {} }
+const ehErroRede = (e) => !navigator.onLine || /fetch|NetworkError|Load failed|network/i.test((e && e.message) || String(e));
+function enfileirar(op) { gravarFila([...lerFila(), { ...op, casa: estado.casa.id }]); }
+function idsPendentes() { return new Set(lerFila().flatMap((o) => (o.op === "insert" ? o.linhas.map((l) => l.id) : [o.id]))); }
+
+// Põe por cima dos dados do banco o que ainda não foi enviado.
+function aplicarFila(lista) {
+  const fila = lerFila();
+  if (!fila.length) return lista;
+  const m = new Map(lista.map((l) => [l.id, l]));
+  for (const o of fila) {
+    if (o.op === "insert") for (const l of o.linhas) { if (!m.has(l.id)) m.set(l.id, { ...l }); }
+    else if (m.has(o.id)) m.set(o.id, { ...m.get(o.id), ...o.campos });
+  }
+  return [...m.values()];
+}
+
+let enviandoFila = false;
+async function enviarFila() {
+  if (enviandoFila || !navigator.onLine || !estado.casa) return;
+  let fila = lerFila();
+  if (!fila.length) return;
+  enviandoFila = true;
+  let enviados = 0;
+  try {
+    while (fila.length) {
+      const o = fila[0];
+      const r = o.op === "insert"
+        ? await sb.from("lancamentos").upsert(o.linhas)
+        : await sb.from("lancamentos").update(o.campos).eq("id", o.id);
+      if (r.error && ehErroRede(r.error)) break;
+      if (r.error) avisar("Um item guardado foi recusado pelo banco: " + msgErro(r.error));
+      fila = fila.slice(1);
+      gravarFila(fila);
+      enviados++;
+    }
+  } finally { enviandoFila = false; }
+  if (enviados) {
+    await carregar();
+    avisar(enviados === 1 ? "O que estava guardado foi enviado." : `${enviados} itens guardados foram enviados.`);
+  }
+}
+window.addEventListener("online", enviarFila);
+window.addEventListener("offline", () => estado.casa && render());
 
 function definirLancs(lista) {
   // Mesma ordem da planilha: por data, receitas antes das despesas.
@@ -319,8 +379,10 @@ function assinarMudancas() {
     .subscribe();
 }
 
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && estado.casa) carregar();
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState !== "visible" || !estado.casa) return;
+  await enviarFila();
+  carregar();
 });
 
 // ---------- contas fixas ----------
@@ -424,6 +486,7 @@ $("lista-series").addEventListener("click", async (e) => {
   } catch (err) { avisar(msgErro(err)); }
 });
 $("btn-series").onclick = () => { renderSeries(); abrirPainel($("painel-series")); };
+$("btn-limites").onclick = () => abrirLimites();
 
 // ---------- tela principal ----------
 
@@ -539,6 +602,19 @@ function render() {
     const partes = [receber && `${brl.format(receber)} a receber`, pagar && `${brl.format(pagar)} a pagar`].filter(Boolean).join(" e ");
     avisos.push(`<button class="aviso atencao" data-ir-atrasados="${atrasados[0].data.slice(0, 7)}">${IC.alerta}<span>${atrasados.length === 1 ? "1 lançamento passou" : `${atrasados.length} lançamentos passaram`} da data sem check: ${partes}.</span>${IC.ir}</button>`);
   }
+  estado.pendentes = idsPendentes();
+  if (estado.pendentes.size) {
+    const n = lerFila().length;
+    avisos.unshift(`<button class="aviso info" data-enviar-fila>${svg('<path d="M4 14.9A7 7 0 1115.7 8h1.8a4.5 4.5 0 012.5 8.2"/><path d="M12 12v9M8 17l4 4 4-4"/>')}<span>${n === 1 ? "1 item guardado" : `${n} itens guardados`} no aparelho, esperando internet para enviar.</span>${IC.ir}</button>`);
+  }
+  const usoLimites = usoDosLimites(mes).filter((u) => u.fracao >= 0.85);
+  if (usoLimites.length && mes >= mesAtual) {
+    const estourou = usoLimites.some((u) => u.fracao > 1);
+    const u = usoLimites[0];
+    avisos.push(`<button class="aviso ${estourou ? "ruim" : "atencao"}" data-abrir-resumo>${IC.alerta}<span>${usoLimites.length === 1
+      ? `${esc(u.nome)}: ${brl.format(u.gasto)} de ${brl.format(u.limite)} (${Math.round(u.fracao * 100)}% do limite).`
+      : `${usoLimites.length} categorias perto ou acima do limite${estourou ? `; ${esc(u.nome)} passou ${brl.format(u.gasto - u.limite)}` : ""}.`}</span>${IC.ir}</button>`);
+  }
   if (mes >= mesAtual) {
     const acabando = seriesAcabando();
     if (acabando.length) {
@@ -644,6 +720,7 @@ function itemHtml(l, hj, op = {}) {
   if (l.recorrente) tags.push(`<span class="tag">fixa</span>`);
   if (atrasado) tags.push(`<span class="tag atraso">atrasado</span>`);
   if (l.criado_por) tags.push(`<span class="tag">${esc(nomeDe(l.criado_por))}</span>`);
+  if (estado.pendentes.has(l.id)) tags.push(`<span class="tag atraso">aguardando internet</span>`);
   const feito = l.tipo === "receita" ? "recebido" : "pago";
   return `<div class="item ${baixado ? "baixado" : ""}">
     <button class="check ${l.pago ? "ok" : ""} ${atrasado ? "atrasado" : ""}" data-check="${l.id}" aria-pressed="${l.pago}" aria-label="${esc(l.descricao)}: ${l.pago ? `tirar check` : `marcar como ${feito}`}"><span class="bola">${IC.check}</span></button>
@@ -666,6 +743,11 @@ $("conteudo").addEventListener("click", async (ev) => {
   if (t("[data-filtro]")) { estado.filtro = t("[data-filtro]").dataset.filtro; estado.filtroCat = null; render(); return; }
   if (t("[data-limpar-cat]")) { estado.filtroCat = null; render(); return; }
   if (t("[data-abrir-resumo]")) { abrirResumo(); return; }
+  if (t("[data-enviar-fila]")) {
+    if (!navigator.onLine) { avisar("Ainda sem internet. Assim que conectar, o app envia sozinho."); return; }
+    await enviarFila();
+    return;
+  }
   if (t("[data-check]")) { await alternarPago(t("[data-check]").dataset.check); return; }
   if (t("[data-editar]")) { abrirLanc(estado.lancs.find((l) => l.id === t("[data-editar]").dataset.editar)); return; }
   if (t("[data-alternar-passado]")) { estado.verPassado = !estado.verPassado; render(); return; }
@@ -695,7 +777,15 @@ async function alternarPago(id) {
   render();
   document.querySelector(`[data-check="${id}"]`)?.classList.add("pulso");
   vibrar(l.pago ? 10 : 6);
+  const guardar = () => {
+    enfileirar({ op: "update", id, campos: { pago: l.pago } });
+    gravarCache();
+    render();
+    avisar("Sem internet: o check ficou guardado e vai quando conectar.");
+  };
+  if (!navigator.onLine) return guardar();
   const { error } = await sb.from("lancamentos").update({ pago: l.pago }).eq("id", id);
+  if (error && ehErroRede(error)) return guardar();
   if (error) { l.pago = antes; render(); avisar(msgErro(error)); return; }
   const feito = l.tipo === "receita" ? "Recebido" : "Pago";
   avisar(l.pago ? `${feito}: ${l.descricao}` : `Check tirado: ${l.descricao}`, async () => {
@@ -767,7 +857,7 @@ window.addEventListener("scroll", () => $("topo").classList.toggle("rolou", wind
 
 // ---------- painéis ----------
 
-const PAINEIS = ["painel-lanc", "painel-ajustes", "painel-historico", "painel-series", "painel-resumo", "painel-busca"];
+const PAINEIS = ["painel-lanc", "painel-ajustes", "painel-historico", "painel-series", "painel-resumo", "painel-busca", "painel-limites"];
 function abrirPainel(p) {
   fecharPaineis(true);
   $("fundo").hidden = false;
@@ -1012,8 +1102,21 @@ $("painel-lanc").addEventListener("submit", async (ev) => {
       } else {
         linhas = [{ ...base, data, pago: pagoPrimeiro }];
       }
-      for (const x of linhas) x.id = crypto.randomUUID();
+      const agora = new Date().toISOString();
+      for (const x of linhas) Object.assign(x, { id: crypto.randomUUID(), recorrente: !!x.recorrente, parcela: x.parcela ?? null, parcelas: x.parcelas ?? null, grupo: x.grupo ?? null });
+      // Sem internet: guarda no aparelho e envia depois (conta "sem data para acabar" precisa do banco na hora).
+      const guardar = () => {
+        if (semFim) throw new Error("Sem internet. Conta sem data para acabar precisa de conexão; tente de novo quando conectar.");
+        enfileirar({ op: "insert", linhas: linhas.map((x) => ({ ...x, criado_por: estado.sessao?.user?.id, criado_em: agora, atualizado_em: agora })) });
+        estado.mes = data.slice(0, 7);
+        definirLancs(aplicarFila(estado.lancs));
+        gravarCache();
+        fecharPaineis();
+        avisar("Sem internet: ficou guardado no aparelho e vai quando conectar.");
+      };
+      if (!navigator.onLine) { guardar(); return; }
       const { error } = await sb.from("lancamentos").insert(linhas);
+      if (error && ehErroRede(error)) { guardar(); return; }
       if (error) throw error;
       if (semFim) {
         const r = await sb.from("series").insert({ grupo: linhas[0].grupo, casa_id: estado.casa.id, passo: "mes", sem_fim: true, gerado_ate: linhas[linhas.length - 1].data });
@@ -1091,14 +1194,40 @@ function totaisPorCategoria(lista, tipo) {
   return [...m.entries()].sort((a, b) => b[1] - a[1]);
 }
 
+// Quanto de cada limite já foi usado no mês (conta também o que ainda não tem check).
+function usoDosLimites(mes) {
+  if (!estado.limites?.size) return [];
+  const gastos = new Map(totaisPorCategoria(estado.lancs.filter((l) => l.data.startsWith(mes)), "despesa"));
+  return [...estado.limites.entries()].map(([k, limite]) => {
+    const gasto = gastos.get(k) || 0;
+    return { chave: k, nome: catInfo("despesa", k).nome, gasto, limite, fracao: gasto / limite };
+  }).sort((a, b) => b.fracao - a.fracao);
+}
+
 function barrasHtml(tipo, doMes, doAnt) {
   const linhas = totaisPorCategoria(doMes, tipo);
+  const limites = tipo === "despesa" && estado.limites ? estado.limites : new Map();
+  // Categorias com limite aparecem mesmo sem gasto no mês.
+  for (const k of limites.keys()) if (!linhas.some(([c]) => c === k)) linhas.push([k, 0]);
   if (!linhas.length) return '<div class="nota">Nada neste mês.</div>';
   const ant = new Map(totaisPorCategoria(doAnt, tipo));
-  const total = linhas.reduce((s, [, v]) => s + v, 0);
-  const max = Math.max(...linhas.map(([, v]) => v), ...ant.values());
+  const total = linhas.reduce((s, [, v]) => s + v, 0) || 1;
+  const max = Math.max(...linhas.map(([, v]) => v), ...ant.values(), 1);
   return linhas.map(([k, v]) => {
-    const c = catInfo(tipo, k), va = ant.get(k);
+    const c = catInfo(tipo, k), va = ant.get(k), lim = limites.get(k);
+    if (lim) {
+      // Com limite, a barra mostra quanto do limite já foi usado.
+      const f = v / lim, estado_ = f > 1 ? "estourou" : f >= 0.85 ? "perto" : "";
+      const resto = lim - v;
+      return `<button class="barra" data-cat-filtro="${tipo}|${k}">
+        <span class="cat-ic">${c.icone}</span>
+        <span class="barra-corpo">
+          <span class="barra-topo"><span>${esc(c.nome)}</span><b class="num">${brl.format(v)} <span class="de-limite">de ${brl.format(lim)}</span></b></span>
+          <span class="trilho"><span class="enche ${estado_}" style="width:${Math.min(100, f * 100).toFixed(1)}%"></span></span>
+          <span class="barra-rodape num"><span class="${estado_}">${resto >= 0 ? `faltam ${brl.format(resto)}` : `passou ${brl.format(-resto)}`}</span><span>${Math.round(f * 100)}% do limite</span></span>
+        </span>
+      </button>`;
+    }
     return `<button class="barra" data-cat-filtro="${tipo}|${k}">
       <span class="cat-ic">${c.icone}</span>
       <span class="barra-corpo">
@@ -1109,6 +1238,45 @@ function barrasHtml(tipo, doMes, doAnt) {
     </button>`;
   }).join("");
 }
+
+// ---------- limites ----------
+
+function abrirLimites() {
+  const mesAtual = hoje().slice(0, 7);
+  // Média dos 3 meses anteriores com lançamento, para ajudar a escolher o valor.
+  const meses = [1, 2, 3].map((n) => somarMeses(mesAtual + "-01", -n).slice(0, 7))
+    .filter((m) => estado.lancs.some((l) => l.data.startsWith(m)));
+  const media = new Map();
+  for (const m of meses) for (const [k, v] of totaisPorCategoria(estado.lancs.filter((l) => l.data.startsWith(m)), "despesa")) media.set(k, (media.get(k) || 0) + v / meses.length);
+  const atual = new Map(totaisPorCategoria(estado.lancs.filter((l) => l.data.startsWith(mesAtual)), "despesa"));
+  $("lista-limites").innerHTML = CATS.despesa.map(([k, nome, d]) => {
+    const lim = estado.limites.get(k);
+    const ref = media.get(k) ? `média ${brl.format(media.get(k))}` : atual.get(k) ? `${nomeDoMes(mesAtual)}: ${brl.format(atual.get(k))}` : "sem gastos ainda";
+    return `<label class="limite">
+      <span class="cat-ic">${svg(d)}</span>
+      <span class="limite-txt"><span>${nome}</span><small class="num">${ref}</small></span>
+      <input class="num" inputmode="decimal" data-limite="${k}" placeholder="sem limite" value="${lim ? mostrarValor(lim) : ""}" aria-label="Limite de ${nome}">
+    </label>`;
+  }).join("");
+  abrirPainel($("painel-limites"));
+}
+
+$("lista-limites").addEventListener("change", async (e) => {
+  const inp = e.target.closest("[data-limite]");
+  if (!inp) return;
+  const k = inp.dataset.limite, nome = catInfo("despesa", k).nome;
+  const txt = inp.value.trim();
+  const valor = txt ? lerValor(txt) : 0;
+  if (txt && !(valor > 0)) { avisar("Digite um valor, por exemplo 800 ou 1.200,00."); return; }
+  const r = valor
+    ? await sb.from("limites").upsert({ casa_id: estado.casa.id, categoria: k, valor, atualizado_em: new Date().toISOString() })
+    : await sb.from("limites").delete().eq("casa_id", estado.casa.id).eq("categoria", k);
+  if (r.error) { avisar(msgErro(r.error)); return; }
+  if (valor) { estado.limites.set(k, valor); inp.value = mostrarValor(valor); } else estado.limites.delete(k);
+  gravarCache();
+  render();
+  avisar(valor ? `Limite de ${nome}: ${brl.format(valor)} por mês.` : `${nome} ficou sem limite.`);
+});
 
 function abrirResumo() {
   const mes = estado.mes, ant = somarMeses(mes + "-01", -1).slice(0, 7);
@@ -1133,7 +1301,7 @@ function abrirResumo() {
   $("resumo-tit").textContent = `Resumo de ${nomeMes.format(deIso(mes + "-01"))}`;
   $("resumo-corpo").innerHTML = `
     <div class="frases">${frases.map((f) => `<p>${f}</p>`).join("")}</div>
-    <h3 class="sub">Saídas por categoria</h3>
+    <div class="sub-linha"><h3 class="sub">Saídas por categoria</h3>${estado.limites ? `<button class="btn texto" type="button" data-abrir-limites>${estado.limites.size ? "Editar limites" : "Definir limites"}</button>` : ""}</div>
     ${barrasHtml("despesa", doMes, doAnt)}
     ${doAnt.length ? '<div class="nota"><i class="fantasma-leg"></i> traço = mesma categoria no mês anterior</div>' : ""}
     <h3 class="sub">Entradas por categoria</h3>
@@ -1146,6 +1314,7 @@ function abrirResumo() {
 }
 
 $("resumo-corpo").addEventListener("click", (e) => {
+  if (e.target.closest("[data-abrir-limites]")) { abrirLimites(); return; }
   const b = e.target.closest("[data-cat-filtro]");
   if (b) {
     estado.filtroCat = b.dataset.catFiltro;
@@ -1338,6 +1507,7 @@ $("abrir-ajustes").onclick = () => {
   $("ajustes-codigo").textContent = estado.casa?.codigo || "—";
   $("ajustes-email").textContent = "Conectado como " + (estado.sessao?.user?.email || "");
   $("ajustes-nome").value = estado.membros.get(estado.sessao?.user?.id)?.nome || "";
+  $("btn-limites").hidden = !estado.limites;
   aplicarTema(temaAtual());
   abrirPainel($("painel-ajustes"));
 };
