@@ -2769,7 +2769,21 @@ $("form-casa").addEventListener("submit", async (ev) => {
 // ---------- PWA ----------
 
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch((e) => console.warn("service worker não registrado", e)));
+  // Versão nova do app: procura ao voltar para a tela e recarrega sozinho quando nada está aberto.
+  const tinhaVersao = !!navigator.serviceWorker.controller;
+  let recarregarDepois = false;
+  const recarregarSeLivre = () => {
+    const ocupado = PAINEIS.some((id) => !$(id).hidden) || !$("painel-confirma").hidden;
+    if (ocupado) { recarregarDepois = true; return; }
+    location.reload();
+  };
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (tinhaVersao) recarregarSeLivre(); });
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js")
+    .then((reg) => document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") reg.update().catch(() => {});
+      else if (recarregarDepois) location.reload();
+    }))
+    .catch((e) => console.warn("service worker não registrado", e)));
 }
 
 iniciar();

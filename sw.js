@@ -1,5 +1,5 @@
 // Guarda a casca do app para abrir rápido e sem internet. Os dados vêm sempre do Supabase.
-const CACHE = "financas-v26";
+const CACHE = "financas-v27";
 const CASCA = [
   "./", "index.html", "app.js", "config.js", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "fonts/manrope-latin-wght.woff2", "fonts/jetbrainsmono-latin-wght.woff2",
@@ -22,7 +22,8 @@ self.addEventListener("fetch", (e) => {
   const ehCasa = url.origin === location.origin || url.hostname === "cdn.jsdelivr.net";
   if (e.request.method !== "GET" || !ehCasa) return;
   e.respondWith(
-    fetch(e.request)
+    // no-cache: confere com o servidor (o GitHub Pages manda guardar por 10 minutos).
+    fetch(e.request, url.origin === location.origin ? { cache: "no-cache" } : undefined)
       .then((r) => { const copia = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copia)); return r; })
       .catch(() => caches.match(e.request, { ignoreSearch: true }))
   );
