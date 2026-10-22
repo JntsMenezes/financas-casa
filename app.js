@@ -171,6 +171,9 @@ function msgErro(e) {
   if (/Email not confirmed/i.test(m)) return "Confirme seu e-mail antes de entrar (veja a caixa de entrada).";
   if (/User already registered/i.test(m)) return "Esse e-mail já tem conta. Use \"Entrar\".";
   if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return "Sem internet. Tente de novo quando conectar.";
+  if (/rate limit|only request this after/i.test(m)) return "Muitos e-mails em pouco tempo. Espere alguns minutos e tente de novo.";
+  if (/should be different from the old password/i.test(m)) return "A senha nova precisa ser diferente da antiga.";
+  if (/Password should be at least/i.test(m)) return "A senha precisa ter pelo menos 6 caracteres.";
   return m;
 }
 
@@ -215,8 +218,12 @@ async function iniciar() {
     document.body.innerHTML = '<div class="tela-centro"><div class="caixa"><h1>Falta configurar</h1><p>Preencha a URL e a chave do Supabase em config.js.</p></div></div>';
     return;
   }
+  // Veio do link do e-mail de trocar senha: fica na tela de nova senha até salvar.
+  const doLink = new URLSearchParams(location.hash.slice(1) + "&" + location.search.slice(1));
+  estado.recuperando = doLink.get("type") === "recovery";
+  const erroLink = doLink.get("error_code") || doLink.get("error");
   sb.auth.onAuthStateChange((evento, sessao) => {
-    if (evento === "PASSWORD_RECOVERY") { mostrarTela("tela-nova-senha"); return; }
+    if (evento === "PASSWORD_RECOVERY") { estado.recuperando = true; estado.sessao = sessao; mostrarTela("tela-nova-senha"); return; }
     const antes = estado.sessao?.user?.id;
     estado.sessao = sessao;
     if (evento === "SIGNED_OUT") { sairLimpo(); return; }
@@ -224,6 +231,15 @@ async function iniciar() {
   });
   const { data } = await sb.auth.getSession();
   estado.sessao = data.session;
+  if (erroLink) {
+    history.replaceState(null, "", location.pathname);
+    mostrarTela("tela-login");
+    $("login-erro").textContent = /expired|invalid/i.test(doLink.get("error_description") || erroLink)
+      ? "Esse link já foi usado ou venceu. Peça um novo em \"Esqueci a senha\" e use o e-mail mais recente."
+      : "Não deu para abrir o link do e-mail. Peça um novo em \"Esqueci a senha\".";
+    return;
+  }
+  if (estado.recuperando && estado.sessao) { mostrarTela("tela-nova-senha"); return; }
   if (!estado.sessao) { mostrarTela("tela-login"); return; }
   await abrirCasa();
 }
@@ -254,6 +270,7 @@ function gravarCache() {
 function limparCache() { try { localStorage.removeItem(CHAVE_CACHE); } catch (e) {} }
 
 async function abrirCasa() {
+  if (estado.recuperando) { mostrarTela("tela-nova-senha"); return; }
   if (!estado.sessao) { mostrarTela("tela-login"); return; }
   estado.mes = estado.mes || hoje().slice(0, 7);
   const cache = lerCache();
@@ -2495,17 +2512,29 @@ $("form-login").addEventListener("submit", async (ev) => {
   }
 });
 
+// Um pedido por vez: cada pedido novo invalida o link do anterior.
+let esqueciAte = 0;
 $("login-esqueci").onclick = async () => {
   const email = $("login-email").value.trim();
+  const b = $("login-esqueci");
   if (!email) { $("login-erro").textContent = "Digite seu e-mail acima e toque de novo em \"Esqueci a senha\"."; return; }
+  if (Date.now() < esqueciAte) { $("login-erro").textContent = "O link já foi enviado. Use o e-mail mais recente; se não chegar, espere um minuto e peça de novo."; return; }
+  b.disabled = true;
   const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
-  $("login-erro").textContent = error ? msgErro(error) : "Enviamos um link para trocar a senha no seu e-mail.";
+  b.disabled = false;
+  if (!error) esqueciAte = Date.now() + 60000;
+  $("login-erro").textContent = error ? msgErro(error) : "Enviamos um link para trocar a senha. Abra o e-mail mais recente; os anteriores deixam de valer.";
 };
 
 $("form-nova-senha").addEventListener("submit", async (ev) => {
   ev.preventDefault();
+  const btn = ev.submitter || $("form-nova-senha").querySelector("button");
+  btn.disabled = true;
   const { error } = await sb.auth.updateUser({ password: $("nova-senha").value });
+  btn.disabled = false;
   if (error) { $("nova-senha-erro").textContent = msgErro(error); return; }
+  estado.recuperando = false;
+  history.replaceState(null, "", location.pathname);
   avisar("Senha trocada.");
   abrirCasa();
 });
