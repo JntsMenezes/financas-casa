@@ -1122,20 +1122,27 @@ function adivinharNoForm() {
   estado.categoriaSel = d ? adivinharCategoria(d, tipoSel) : null;
   renderCats();
 }
+// A categoria aparece num botão; tocar abre o quadro com todas, escolher fecha.
 function renderCats() {
-  const caixa = $("lanc-cats");
-  caixa.innerHTML = CATS[tipoSel].map(([chave, nome, d]) =>
+  $("lanc-cats").innerHTML = CATS[tipoSel].map(([chave, nome, d]) =>
     `<button type="button" class="cat ${estado.categoriaSel === chave ? "ativo" : ""}" data-cat="${chave}" role="radio" aria-checked="${estado.categoriaSel === chave}">${svg(d)}<span>${nome}</span></button>`).join("");
-  // Traz a categoria escolhida para a parte visível da fila.
-  const ativo = caixa.querySelector(".cat.ativo");
-  if (ativo) caixa.scrollTo({ left: Math.max(0, ativo.offsetLeft - caixa.offsetLeft - 18), behavior: "smooth" });
+  const c = estado.categoriaSel && catInfo(tipoSel, estado.categoriaSel);
+  $("lanc-cat-btn").innerHTML = c
+    ? `<span class="cat-ic">${c.icone}</span><span class="nome">${esc(c.nome)}</span>${IC.baixo}`
+    : `<span class="nome vazio-cat">Escolher categoria</span>${IC.baixo}`;
 }
+function abrirCats(abrir) {
+  $("lanc-cats").classList.toggle("aberta", abrir);
+  $("lanc-cat-btn").setAttribute("aria-expanded", abrir);
+}
+$("lanc-cat-btn").onclick = () => abrirCats(!$("lanc-cats").classList.contains("aberta"));
 $("lanc-cats").onclick = (e) => {
   const b = e.target.closest("[data-cat]");
   if (!b) return;
   estado.categoriaSel = b.dataset.cat;
   catManual = true;
   renderCats();
+  abrirCats(false);
 };
 $("lanc-desc").addEventListener("input", adivinharNoForm);
 $("lanc-tipo").onclick = (e) => { const b = e.target.closest("[data-tipo]"); if (b) definirTipo(b.dataset.tipo); };
@@ -1200,6 +1207,7 @@ function abrirLanc(l, padrao = {}) {
   catManual = !!l;
   definirTipo(tipoSel);
   for (const id of ["lanc-cats-rot", "lanc-cats"]) $(id).hidden = !!l?.caixinha_id;
+  abrirCats(false);
   $("lanc-semfim").checked = false;
   $("bloco-semfim").hidden = !estado.seriesDb;
   const dataPadrao = padrao.data || (estado.mes === hoje().slice(0, 7) ? hoje() : estado.mes + "-01");

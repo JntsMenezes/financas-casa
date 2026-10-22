@@ -43,8 +43,8 @@
     --ink: #0d1823;
     --muted: #566373;
     --line: #dde5eb;
-    --verde: #0f766e;
-    --verde-bg: #ddf3ef;
+    --verde: #087a52;
+    --verde-bg: #dcf2e8;
     --vermelho: #c62828;
     --vermelho-bg: #fcebeb;
     --ambar: #995a00;
@@ -62,7 +62,7 @@
     --brilho: rgba(10, 107, 135, .12);
     --q1: #0a6b87;
     --q2: #a3367a;
-    --l-ent: #0a8a5c;
+    --l-ent: var(--verde);
     --l-sai: #d23a3a;
     --sombra: 0 1px 2px rgba(13, 24, 35, .04), 0 10px 28px -16px rgba(13, 24, 35, .16);
     --sombra-alta: 0 -10px 40px rgba(13, 24, 35, .16);
@@ -74,22 +74,22 @@
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #0a0b0f; --card: #101319; --ink: #e6e8ee; --muted: #8a91a3; --line: rgba(255,255,255,.08);
-      --verde: #5eead4; --verde-bg: rgba(94,234,212,.1); --vermelho: #f87171; --vermelho-bg: rgba(248,113,113,.1);
+      --verde: #1f9e74; --verde-bg: rgba(31,158,116,.14); --vermelho: #f87171; --vermelho-bg: rgba(248,113,113,.1);
       --ambar: #fbbf24; --ambar-bg: rgba(251,191,36,.1); --primaria: oklch(.82 .14 210); --primaria-bg: oklch(.82 .14 210 / .13); --sobre-primaria: #06121b;
       --campo: #0e1015; --check-borda: rgba(255,255,255,.24); --aviso-ruim: #fca5a5; --aviso-atencao: #fcd34d;
       --vidro: rgba(10, 11, 15, .72); --toast-acao: oklch(.82 .14 210); --grade: rgba(255,255,255,.04); --brilho: oklch(.82 .14 210 / .16);
-      --q1: oklch(.82 .14 210); --q2: oklch(.8 .12 330); --l-ent: #1f9e74; --l-sai: #e05252;
+      --q1: oklch(.82 .14 210); --q2: oklch(.8 .12 330); --l-ent: var(--verde); --l-sai: #e05252;
       --sombra: 0 0 0 1px rgba(255,255,255,.06); --sombra-alta: 0 -12px 48px rgba(0,0,0,.6);
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
     --bg: #0a0b0f; --card: #101319; --ink: #e6e8ee; --muted: #8a91a3; --line: rgba(255,255,255,.08);
-    --verde: #5eead4; --verde-bg: rgba(94,234,212,.1); --vermelho: #f87171; --vermelho-bg: rgba(248,113,113,.1);
+    --verde: #1f9e74; --verde-bg: rgba(31,158,116,.14); --vermelho: #f87171; --vermelho-bg: rgba(248,113,113,.1);
     --ambar: #fbbf24; --ambar-bg: rgba(251,191,36,.1); --primaria: oklch(.82 .14 210); --primaria-bg: oklch(.82 .14 210 / .13); --sobre-primaria: #06121b;
     --campo: #0e1015; --check-borda: rgba(255,255,255,.24); --aviso-ruim: #fca5a5; --aviso-atencao: #fcd34d;
     --vidro: rgba(10, 11, 15, .72); --toast-acao: oklch(.82 .14 210); --grade: rgba(255,255,255,.04); --brilho: oklch(.82 .14 210 / .16);
-    --q1: oklch(.82 .14 210); --q2: oklch(.8 .12 330); --l-ent: #1f9e74; --l-sai: #e05252;
+    --q1: oklch(.82 .14 210); --q2: oklch(.8 .12 330); --l-ent: var(--verde); --l-sai: #e05252;
     --sombra: 0 0 0 1px rgba(255,255,255,.06); --sombra-alta: 0 -12px 48px rgba(0,0,0,.6);
     color-scheme: dark;
   }
@@ -390,6 +390,18 @@
   .cat { flex: none; display: flex; align-items: center; gap: 7px; height: 40px; padding: 0 14px 0 11px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--muted); font-size: 14px; white-space: nowrap; transition: background .15s, color .15s, border-color .15s, transform .12s var(--sai); }
   .cat .ic { width: 17px; height: 17px; }
   .cat.ativo { background: var(--primaria-bg); color: var(--primaria); border-color: transparent; font-weight: 600; }
+  .cat-escolhida { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 50px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--campo); color: var(--ink); font-size: 16px; font-weight: 600; text-align: left; }
+  .cat-escolhida .cat-ic { width: 30px; height: 30px; border-radius: 9px; }
+  .cat-escolhida span.nome { flex: 1; min-width: 0; }
+  .cat-escolhida .vazio-cat { color: var(--muted); font-weight: 500; }
+  .cat-escolhida > .ic:last-child { color: var(--muted); transition: transform .2s var(--sai); }
+  .cat-escolhida[aria-expanded="true"] { border-color: var(--primaria); box-shadow: 0 0 0 3px var(--primaria-bg); }
+  .cat-escolhida[aria-expanded="true"] > .ic:last-child { transform: rotate(180deg); }
+  .grade-cats { display: none; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: -6px 0 16px; }
+  .grade-cats.aberta { display: grid; animation: abrirGrade .2s var(--sai); }
+  @keyframes abrirGrade { from { opacity: 0; transform: translateY(-4px); } }
+  .grade-cats .cat { flex-direction: column; justify-content: center; gap: 6px; height: auto; min-height: 72px; padding: 10px 6px; border-radius: 12px; white-space: normal; text-align: center; font-size: 12.5px; line-height: 1.2; }
+  .grade-cats .cat .ic { width: 20px; height: 20px; }
   .chip-cat { display: flex; align-items: center; gap: 6px; padding: 0 10px 0 12px; }
   .chip-cat .ic { width: 16px; height: 16px; }
   .nota { color: var(--muted); font-size: 13px; margin: 8px 0; }
@@ -611,8 +623,10 @@
   <label class="campo valor-grande"><span>Valor (R$)</span><input id="lanc-valor" class="num" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>
   <label class="campo"><span>Descrição</span><input id="lanc-desc" list="sugestoes" maxlength="120" autocomplete="off" placeholder="Ex.: Mercado Semana"></label>
   <datalist id="sugestoes"></datalist>
-  <div class="campo" id="lanc-cats-rot"><span>Categoria</span></div>
-  <div class="cats" id="lanc-cats" role="radiogroup" aria-label="Categoria"></div>
+  <div class="campo" id="lanc-cats-rot"><span>Categoria</span>
+    <button type="button" class="cat-escolhida" id="lanc-cat-btn" aria-expanded="false" aria-controls="lanc-cats"></button>
+  </div>
+  <div class="grade-cats" id="lanc-cats" role="radiogroup" aria-label="Categoria"></div>
   <label class="campo"><span>Data</span><input type="date" id="lanc-data"></label>
   <label class="toggle"><span id="lanc-pago-rot">Já foi pago</span><input type="checkbox" id="lanc-pago"></label>
 
