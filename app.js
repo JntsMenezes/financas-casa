@@ -2350,12 +2350,17 @@ async function mostrarLembretes() {
   }
   const reg = await navigator.serviceWorker.ready;
   const sub = await reg.pushManager.getSubscription();
-  let noServidor = false;
+  let noServidor = false, resumo = false;
   if (sub) {
-    const { data } = await sb.from("push_inscricoes").select("endpoint").eq("endpoint", sub.endpoint);
+    const { data } = await sb.from("push_inscricoes").select("endpoint, resumo").eq("endpoint", sub.endpoint);
     noServidor = !!data?.length;
+    resumo = !!data?.[0]?.resumo;
   }
   chave.checked = !!sub && noServidor && Notification.permission === "granted";
+  // O resumo vai pelo mesmo canal: só aparece com os lembretes ligados.
+  $("bloco-resumo").hidden = !chave.checked;
+  $("resumo-ligar").checked = resumo;
+  $("resumo-estado").textContent = resumo ? "Ligado" : "Desligado";
   chave.disabled = Notification.permission === "denied";
   $("lembretes-estado").textContent = chave.checked ? "Ligado" : "Desligado";
   if (Notification.permission === "denied") txt.textContent = "As notificações estão bloqueadas para este site. Libere nas configurações do navegador e volte aqui.";
@@ -2390,6 +2395,25 @@ $("lembretes-ligar").addEventListener("change", async (e) => {
     avisar(msgErro(err));
   } finally {
     await mostrarLembretes();
+  }
+});
+
+$("resumo-ligar").addEventListener("change", async (e) => {
+  const chave = e.target;
+  chave.disabled = true;
+  try {
+    const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
+    if (!sub) throw new Error("Ligue os lembretes primeiro.");
+    const { data, error } = await sb.from("push_inscricoes").update({ resumo: chave.checked }).eq("endpoint", sub.endpoint).select("endpoint");
+    if (error) throw error;
+    if (!data.length) throw new Error("Este celular não está inscrito. Desligue e ligue os lembretes de novo.");
+    $("resumo-estado").textContent = chave.checked ? "Ligado" : "Desligado";
+    avisar(chave.checked ? "Resumo da semana ligado neste celular." : "Resumo da semana desligado neste celular.");
+  } catch (err) {
+    chave.checked = !chave.checked;
+    avisar(msgErro(err));
+  } finally {
+    chave.disabled = false;
   }
 });
 
