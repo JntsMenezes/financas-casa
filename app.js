@@ -737,12 +737,12 @@ function haQuanto(ts) {
   return dataCurta(dia);
 }
 
-// "juntos, ao vivo" só com os dois de app aberto; "on" quando é só você.
+// "juntos ON" só com os dois de app aberto; "ON" quando é um só.
 function seloHtml(pessoas = estado.membros.size) {
   const conectado = navigator.onLine && estado.aoVivo;
   const txt = !navigator.onLine ? "sem internet" : !estado.aoVivo ? "conectando"
-    : pessoas < 2 ? "esperando a outra pessoa" : (estado.abertos || 1) >= 2 ? "juntos, ao vivo" : "on";
-  return `<span class="selo ${conectado ? "" : "off"} ${txt === "juntos, ao vivo" ? "juntos" : ""}" aria-live="polite">${txt}</span>`;
+    : pessoas < 2 ? "esperando a outra pessoa" : (estado.abertos || 1) >= 2 ? "juntos ON" : "ON";
+  return `<span class="selo ${conectado ? "" : "off"} ${txt === "juntos ON" ? "juntos" : ""}" aria-live="polite">${txt}</span>`;
 }
 function atualizarSelo() {
   const s = document.querySelector(".casal .selo");
