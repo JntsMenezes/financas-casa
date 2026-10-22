@@ -593,6 +593,93 @@ function barrasDiaHtml(pts, hj) {
   </figure>`;
 }
 
+// Duas linhas somando o mês dia a dia: o que entra e o que sai (gastos + guardado).
+// O espaço entre elas fica verde enquanto entra mais do que sai, vermelho quando passa.
+let linhasDados = null;
+function linhasMesHtml(mes, hj, doMes, entradas, saidas, guardado) {
+  const n = Number(fimDoMes(mes).slice(8));
+  const ent = new Array(n).fill(0), sai = new Array(n).fill(0);
+  for (const l of doMes) {
+    const d = Number(l.data.slice(8)) - 1, v = Number(l.valor);
+    if (l.caixinha_id) sai[d] += l.tipo === "despesa" ? v : -v;
+    else if (l.tipo === "receita") ent[d] += v;
+    else sai[d] += v;
+  }
+  for (let i = 1; i < n; i++) { ent[i] += ent[i - 1]; sai[i] += sai[i - 1]; }
+  const W = 340, H = 96, topo = 6;
+  const max = Math.max(...ent, ...sai, 1);
+  const x = (i) => (n === 1 ? W / 2 : (i / (n - 1)) * W);
+  const y = (v) => topo + (1 - v / max) * (H - topo);
+  const iHoje = hj.startsWith(mes) ? Number(hj.slice(8)) - 1 : hj > mes ? n - 1 : -1;
+  const caminho = (arr, a, b) => arr.slice(a, b + 1).map((v, k) => `${k ? "L" : "M"}${x(a + k).toFixed(1)},${y(v).toFixed(1)}`).join("");
+  // Faixas entre as linhas, partidas onde elas se cruzam.
+  let faixas = "";
+  for (let i = 0; i < n - 1; i++) {
+    const d0 = ent[i] - sai[i], d1 = ent[i + 1] - sai[i + 1];
+    const quad = (xa, xb, ea, eb, sa, sb, pos) => `<path d="M${xa.toFixed(1)},${y(ea).toFixed(1)}L${xb.toFixed(1)},${y(eb).toFixed(1)}L${xb.toFixed(1)},${y(sb).toFixed(1)}L${xa.toFixed(1)},${y(sa).toFixed(1)}Z" fill="var(${pos ? "--l-ent" : "--l-sai"})" opacity=".14"/>`;
+    if ((d0 >= 0) === (d1 >= 0)) faixas += quad(x(i), x(i + 1), ent[i], ent[i + 1], sai[i], sai[i + 1], d0 + d1 >= 0);
+    else {
+      const t = d0 / (d0 - d1), xm = x(i) + t * (x(i + 1) - x(i)), vm = ent[i] + t * (ent[i + 1] - ent[i]);
+      faixas += quad(x(i), xm, ent[i], vm, sai[i], vm, d0 >= 0) + quad(xm, x(i + 1), vm, ent[i + 1], vm, sai[i + 1], d1 >= 0);
+    }
+  }
+  // O que já passou em linha cheia; o previsto, tracejado.
+  const linha = (arr, cor) => {
+    const corte = iHoje < 0 ? -1 : Math.min(iHoje, n - 1);
+    const cheia = corte >= 0 ? `<path d="${caminho(arr, 0, corte)}" fill="none" stroke="var(${cor})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>` : "";
+    const prev = corte < n - 1 ? `<path d="${caminho(arr, Math.max(0, corte), n - 1)}" fill="none" stroke="var(${cor})" stroke-width="2" stroke-dasharray="4 4" stroke-linejoin="round" vector-effect="non-scaling-stroke" opacity=".8"/>` : "";
+    return cheia + prev;
+  };
+  const marcaHoje = iHoje >= 0 && iHoje < n - 1 ? `<line x1="${x(iHoje).toFixed(1)}" x2="${x(iHoje).toFixed(1)}" y1="0" y2="${H}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="2 3" vector-effect="non-scaling-stroke" opacity=".6"/>` : "";
+  // Nome de cada linha na ponta direita, afastados se ficarem colados.
+  let yE = (y(ent[n - 1]) / H) * 100, yS = (y(sai[n - 1]) / H) * 100;
+  if (Math.abs(yE - yS) < 16) { const m = (yE + yS) / 2; if (yE <= yS) { yE = m - 8; yS = m + 8; } else { yE = m + 8; yS = m - 8; } }
+  linhasDados = { mes, ent, sai };
+  const sobra = r2(entradas - saidas - guardado);
+  const marcas = [0, 7, 14, 21].filter((i) => i < n - 3).map((i) => `<span>${String(i + 1).padStart(2, "0")}</span>`).join("") + `<span>${n}</span>`;
+  return `<figure class="linhas" style="margin-left:0;margin-right:0">
+    <div class="linhas-area" data-linhas role="img" aria-label="No mês entram ${brl.format(entradas)} e saem ${brl.format(saidas + Math.max(0, guardado))}, contando ${brl.format(Math.max(0, guardado))} guardados">
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${faixas}${marcaHoje}${linha(sai, "--l-sai")}${linha(ent, "--l-ent")}<line class="mira" x1="0" x2="0" y1="0" y2="${H}" stroke="var(--ink)" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0"/></svg>
+      <span class="ponta" style="top:${yE.toFixed(1)}%"><i style="background:var(--l-ent)"></i>entra</span>
+      <span class="ponta" style="top:${yS.toFixed(1)}%"><i style="background:var(--l-sai)"></i>sai</span>
+      <div class="dica" hidden></div>
+    </div>
+    <div class="eixo">${marcas}</div>
+    <div class="fita-rot">
+      <div><span><i style="background:var(--l-ent)"></i>Entra</span><b class="num">${brl.format(entradas)}</b></div>
+      <div><span><i style="background:var(--l-sai)"></i>Sai</span><b class="num">${brl.format(saidas + Math.max(0, guardado))}</b>${guardado > 0 ? `<small class="num">${brl.format(guardado)} guardados</small>` : ""}</div>
+      <div><span>${sobra >= 0 ? "Sobra" : "Falta"}</span><b class="num">${brl.format(Math.abs(sobra))}</b></div>
+    </div>
+  </figure>`;
+}
+
+// Tocar ou passar o dedo no gráfico mostra o dia.
+function dicaLinhas(ev) {
+  const area = ev.target.closest("[data-linhas]");
+  if (!area || !linhasDados) return;
+  const { mes, ent, sai } = linhasDados, n = ent.length;
+  const r = area.getBoundingClientRect();
+  const f = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
+  const i = Math.round(f * (n - 1));
+  const dica = area.querySelector(".dica"), mira = area.querySelector(".mira");
+  const xs = n === 1 ? 170 : (i / (n - 1)) * 340;
+  mira.setAttribute("x1", xs); mira.setAttribute("x2", xs); mira.setAttribute("opacity", ".35");
+  const dif = r2(ent[i] - sai[i]);
+  dica.innerHTML = `<b>${String(i + 1).padStart(2, "0")}/${mes.slice(5)}</b><span><i style="background:var(--l-ent)"></i>entrou <b class="num">${brl.format(ent[i])}</b></span><span><i style="background:var(--l-sai)"></i>saiu <b class="num">${brl.format(sai[i])}</b></span><span>${dif >= 0 ? "sobra" : "falta"} <b class="num">${brl.format(Math.abs(dif))}</b></span>`;
+  dica.hidden = false;
+  dica.style.left = `${Math.min(Math.max(f * 100, 22), 78)}%`;
+}
+function tirarDica(ev) {
+  const area = ev.target.closest?.("[data-linhas]");
+  if (!area) return;
+  area.querySelector(".dica").hidden = true;
+  area.querySelector(".mira").setAttribute("opacity", "0");
+}
+$("conteudo").addEventListener("pointermove", dicaLinhas);
+$("conteudo").addEventListener("pointerdown", dicaLinhas);
+$("conteudo").addEventListener("pointerleave", tirarDica, true);
+$("conteudo").addEventListener("pointerup", (ev) => { if (ev.pointerType !== "mouse") setTimeout(() => tirarDica(ev), 1600); });
+
 // Quem é a pessoa 1 e a 2 da casa, para a cor de cada um.
 function ordemDe(uid) {
   const ids = [...estado.membros.keys()];
@@ -635,28 +722,18 @@ function render() {
   const guardado = guardadoEm(doMes);
   let titulo, apoio;
   if (mes === mesAtual) {
-    titulo = `Hoje, ${nBrl(naConta)} na conta.<span class="l2">Dia ${dia}, ${nBrl(fimMes)}.</span>`;
+    titulo = `Hoje, ${nBrl(naConta)}.<span class="l2">Dia ${dia}, ${nBrl(fimMes)}.</span>`;
     const partes = [aPagar && `faltam pagar <b class="num">${brl.format(aPagar)}</b>`, aReceber && `entrar <b class="num">${brl.format(aReceber)}</b>`].filter(Boolean);
     apoio = (partes.length ? `Até lá ${partes.join(" e ")}` : "Tudo do mês já tem check") +
       (guardado > 0 ? `, e vocês guardam <b class="num">${brl.format(guardado)}</b>.` : ".");
   } else {
-    titulo = `${nomeDoMes(mes).charAt(0).toUpperCase() + nomeDoMes(mes).slice(1)} ${mes > mesAtual ? "fecha" : "fechou"} com ${nBrl(fimMes)}.`;
-    apoio = (mes > mesAtual ? `Hoje vocês têm <b class="num">${brl.format(naConta)}</b> na conta. ` : "") + `${mes > mesAtual ? "Entram" : "Entraram"} <b class="num">${brl.format(entradas)}</b> e ${mes > mesAtual ? "saem" : "saíram"} <b class="num">${brl.format(saidas)}</b>` +
+    titulo = mes > mesAtual
+      ? `Dia ${dia}, ${nBrl(fimMes)}.<span class="l2">Hoje, ${nBrl(naConta)}.</span>`
+      : `${nomeDoMes(mes).charAt(0).toUpperCase() + nomeDoMes(mes).slice(1)} fechou com ${nBrl(fimMes)}.`;
+    apoio = `${mes > mesAtual ? "Entram" : "Entraram"} <b class="num">${brl.format(entradas)}</b> e ${mes > mesAtual ? "saem" : "saíram"} <b class="num">${brl.format(saidas)}</b>` +
       (guardado > 0 ? `; <b class="num">${brl.format(guardado)}</b> ${mes > mesAtual ? "vão" : "foram"} para as caixinhas.` : ".");
   }
-  const base = Math.max(entradas, saidas + Math.max(0, guardado), 1);
-  const pG = Math.min(100, (saidas / base) * 100), pGu = Math.min(100 - pG, (Math.max(0, guardado) / base) * 100);
-  const passou = saidas + Math.max(0, guardado) > entradas && entradas > 0 ? ((saidas + guardado - entradas) / base) * 100 : 0;
-  const fita = `<div class="fita">
-      <div class="fita-trilho" role="img" aria-label="Do que entra no mês, ${Math.round((saidas / Math.max(entradas, 1)) * 100)}% vai para gastos e ${Math.round((Math.max(0, guardado) / Math.max(entradas, 1)) * 100)}% é guardado">
-        <span class="f-gasto" style="width:${pG.toFixed(1)}%"></span><span class="f-guardado" style="left:${pG.toFixed(1)}%;width:${pGu.toFixed(1)}%"></span>${passou ? `<span class="f-passou" style="width:${passou.toFixed(1)}%"></span>` : ""}
-      </div>
-      <div class="fita-rot">
-        <div><span>Entra</span><b class="num">${brl.format(entradas)}</b></div>
-        <div><span><i style="background:var(--muted)"></i>Gastos</span><b class="num">${brl.format(saidas)}</b></div>
-        <div><span><i style="background:var(--verde)"></i>Guardado</span><b class="num">${brl.format(Math.max(0, guardado))}</b></div>
-      </div>
-    </div>`;
+  const fita = linhasMesHtml(mes, hj, doMes, entradas, saidas, guardado);
 
   // Avisos, cada um leva ao que precisa ser feito.
   const avisos = [];
@@ -918,7 +995,7 @@ $("ir-hoje").onclick = irHoje;
 
 let gesto = null;
 $("tela-app").addEventListener("touchstart", (e) => {
-  if (e.touches.length !== 1 || e.target.closest(".filtros, .topo")) { gesto = null; return; }
+  if (e.touches.length !== 1 || e.target.closest(".filtros, .topo, [data-linhas]")) { gesto = null; return; }
   gesto = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: performance.now(), eixo: null, dx: 0 };
 }, { passive: true });
 $("tela-app").addEventListener("touchmove", (e) => {
