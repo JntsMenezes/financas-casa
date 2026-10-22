@@ -322,11 +322,13 @@ async function carregar() {
     for (const l of data) todos.set(l.id, l);
     if (data.length < 1000) break;
   }
-  const [s, lim, cx] = await Promise.all([
+  const [s, lim, cx, hi] = await Promise.all([
     sb.from("series").select("*").eq("casa_id", estado.casa.id),
     sb.from("limites").select("categoria, valor").eq("casa_id", estado.casa.id),
     sb.from("caixinhas").select("*").eq("casa_id", estado.casa.id).order("ordem").order("criado_em"),
+    sb.from("historico").select("user_id, acao, quando, antes, depois").eq("casa_id", estado.casa.id).order("quando", { ascending: false }).limit(40),
   ]);
+  if (!hi.error) estado.recentes = hi.data;
   if (seq !== seqCarga) return true; // uma carga mais nova já está a caminho
   // Só "tabela não existe" desliga o recurso; erro passageiro mantém o que já estava.
   if (!s.error || tabelaAusente(s)) estado.seriesDb = s.error ? null : new Map(s.data.map((x) => [x.grupo, x]));
@@ -635,6 +637,17 @@ $("conteudo").addEventListener("pointerdown", dicaBarras);
 $("conteudo").addEventListener("pointerleave", tirarDica, true);
 $("conteudo").addEventListener("pointerup", (ev) => { if (ev.pointerType !== "mouse") setTimeout(() => tirarDica(ev), 1600); });
 
+// Quando o mês aperta (fica negativo ou chega perto de zero), a frase de apoio já diz o dia.
+function aperto(pts, hj, entradas) {
+  const frente = pts.filter((p) => p.data >= hj);
+  if (!frente.length) return "";
+  const neg = frente.find((p) => p.saldo < 0);
+  if (neg) return ` <span class="aperto neg">O saldo fica negativo a partir do dia ${Number(neg.data.slice(8))}.</span>`;
+  const menor = frente.reduce((a, p) => (p.saldo < a.saldo ? p : a), frente[0]);
+  const limiar = Math.max(200, entradas * 0.05);
+  return menor.saldo < limiar ? ` <span class="aperto">O dia mais apertado é ${Number(menor.data.slice(8))}, com <b class="num">${brl.format(menor.saldo)}</b>.</span>` : "";
+}
+
 // O que pede ação agora: o que passou da data sem check e o que é de hoje.
 function hojeHtml(hj) {
   const atrasados = estado.lancs.filter((l) => !l.pago && l.data < hj);
@@ -654,6 +667,25 @@ function hojeHtml(hj) {
     ${deHoje.length ? `<div class="lista" ${atrasados.length ? 'style="margin-top:8px"' : ""}>${deHoje.map((l) => itemHtml(l, hj, { saldo: true })).join("")}</div>` : '<div class="nada-hoje">Nada lançado para hoje.</div>'}
     ${!falta ? '<div class="em-dia"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>O de hoje já tem check.</span></div>' : seTudo}
   </section>`;
+}
+
+// A última coisa que a outra pessoa fez (dar check conta), para responder "ele pagou a luz?".
+function ultimaAcao() {
+  const eu = estado.sessao?.user?.id;
+  const doHist = (estado.recentes || []).map((h) => {
+    const l = h.depois || h.antes || {};
+    let txt;
+    if (h.acao === "criou") txt = `lançou ${esc(l.descricao || "")}`;
+    else if (h.acao === "apagou") txt = `apagou ${esc(l.descricao || "")}`;
+    else if (h.antes && h.depois && !h.antes.pago && h.depois.pago) txt = `${l.tipo === "receita" ? "marcou como recebido" : "deu check em"} ${esc(l.descricao || "")}`;
+    else txt = `alterou ${esc(l.descricao || "")}`;
+    return { uid: h.user_id, quando: h.quando, txt };
+  }).filter((a) => a.uid);
+  // Sem histórico (banco antigo), usa quem criou cada lançamento.
+  const lista = doHist.length ? doHist : estado.lancs.filter((l) => l.criado_por)
+    .map((l) => ({ uid: l.criado_por, quando: l.criado_em, txt: `lançou ${esc(l.descricao)}` }))
+    .sort((a, b) => b.quando.localeCompare(a.quando));
+  return lista.find((a) => a.uid !== eu) || lista[0] || null;
 }
 
 // "há 5 min", "hoje às 9h12", "ontem", "12/10": quanto tempo faz, em vez de uma data solta.
@@ -680,13 +712,12 @@ function casalHtml() {
   if (!ids.length && estado.sessao) ids.push(estado.sessao.user.id);
   const nomes = ids.map((u) => nomeDe(u));
   const online = navigator.onLine && estado.aoVivo;
-  const ultimoDe = (u) => estado.lancs.filter((l) => l.criado_por === u).reduce((a, l) => (!a || l.criado_em > a.criado_em ? l : a), null);
-  const ultimos = ids.map(ultimoDe).filter(Boolean).sort((a, b) => b.criado_em.localeCompare(a.criado_em));
+  const acao = ultimaAcao();
   return `<div class="casal">
     <span class="pares" aria-hidden="true">${ids.map((u, i) => `<span class="ini bg-q${i + 1}">${esc((nomeDe(u) || "?").charAt(0).toUpperCase())}</span>`).join("")}</span>
     <span class="nomes">${esc(nomes.join(" e "))}</span>
     <span class="selo ${online ? "" : "off"}">${online ? (ids.length > 1 ? "juntos, ao vivo" : "ao vivo") : navigator.onLine ? "conectando" : "sem internet"}</span>
-  </div>${ultimos.length ? `<div class="ultimos">${ultimos.map((l) => `<p class="ultimo"><i class="q${ordemDe(l.criado_por)}"></i><span><b>${esc(nomeDe(l.criado_por))}</b> lançou ${esc(l.descricao)}, ${haQuanto(l.criado_em)}.</span></p>`).join("")}</div>` : ""}`;
+  </div>${acao ? `<p class="ultimo"><i class="q${ordemDe(acao.uid)}"></i><span><b>${esc(nomeDe(acao.uid))}</b> ${acao.txt}, ${haQuanto(acao.quando)}.</span></p>` : ""}`;
 }
 
 const nBrl = (v, k = "") => `<span class="n num ${v < 0 ? "neg" : ""}" data-n="${k}">${brl.format(v)}</span>`;
@@ -716,7 +747,7 @@ function render() {
     titulo = `Hoje, ${nBrl(naConta, "hoje")}.<span class="l2">Dia ${dia}, ${nBrl(fimMes, "fim")}.</span>`;
     const partes = [aPagar && `faltam pagar <b class="num">${brl.format(aPagar)}</b>`, aReceber && `entrar <b class="num">${brl.format(aReceber)}</b>`].filter(Boolean);
     apoio = (partes.length ? `Até lá ${partes.join(" e ")}` : "Tudo do mês já tem check") +
-      (guardado > 0 ? `, e vocês guardam <b class="num">${brl.format(guardado)}</b>.` : ".");
+      (guardado > 0 ? `, e vocês guardam <b class="num">${brl.format(guardado)}</b>.` : ".") + aperto(pts, hj, entradas);
   } else {
     titulo = mes > mesAtual
       ? `Hoje, ${nBrl(naConta, "hoje")}.<span class="l2">Dia ${dia}, ${nBrl(fimMes, "fim")}.</span>`
@@ -724,7 +755,7 @@ function render() {
     const inicio = saldoAte(somarDias(mes + "-01", -1));
     apoio = (mes > mesAtual ? `${nomeDoMes(mes).charAt(0).toUpperCase() + nomeDoMes(mes).slice(1)} começa com <b class="num">${brl.format(inicio)}</b> que sobram de ${nomeDoMes(somarMeses(mes + "-01", -1))}. ` : "") +
       `${mes > mesAtual ? "Entram" : "Entraram"} <b class="num">${brl.format(entradas)}</b> e ${mes > mesAtual ? "saem" : "saíram"} <b class="num">${brl.format(saidas)}</b>` +
-      (guardado > 0 ? `; <b class="num">${brl.format(guardado)}</b> ${mes > mesAtual ? "vão" : "foram"} para as caixinhas.` : ".");
+      (guardado > 0 ? `; <b class="num">${brl.format(guardado)}</b> ${mes > mesAtual ? "vão" : "foram"} para as caixinhas.` : ".") + (mes > mesAtual ? aperto(pts, hj, entradas) : "");
   }
   const inicioMes = saldoAte(somarDias(mes + "-01", -1));
   const blocoHoje = mes === mesAtual ? hojeHtml(hj) : "";
@@ -764,7 +795,7 @@ function render() {
       : `${usoLimites.length} categorias perto ou acima do limite${estourou ? `; ${esc(u.nome)} passou ${brl.format(u.gasto - u.limite)}` : ""}.`}</span>${IC.ir}</button>`);
   }
   if (mes >= mesAtual) {
-    const acabando = seriesAcabando();
+    const acabando = seriesAcabando().filter((s) => s.ultimo.data <= somarDias(hj, 21));
     if (acabando.length) {
       const ate = acabando[acabando.length - 1].ultimo.data;
       avisos.push(`<button class="aviso info" data-abrir-series>${IC.repetir}<span>${acabando.length === 1 ? `"${esc(acabando[0].ultimo.descricao)}" acaba` : `${acabando.length} contas fixas acabam`} até ${mesCurto(ate)}. Toque para criar os próximos meses.</span>${IC.ir}</button>`);
@@ -832,10 +863,14 @@ function extratoHtml(doMes, mes, hj) {
       ? `<div class="nota num" style="margin:14px 4px 0">${lista.length} ${lista.length === 1 ? "lançamento" : "lançamentos"} · ${brl.format(total)} em ${nomeDoMes(mes)}</div>${diasHtml(lista, hj)}`
       : '<div class="vazio">Nada nessa categoria neste mês.</div>';
   }
-  if (estado.filtro !== "todos") {
-    const f = { pendentes: (l) => !l.pago, despesas: (l) => l.tipo === "despesa", receitas: (l) => l.tipo === "receita" }[estado.filtro];
-    const lista = doMes.filter(f);
-    return lista.length ? diasHtml(lista, hj) : '<div class="vazio">Nada nesse filtro.</div>';
+  if (estado.filtro === "pendentes") {
+    const lista = doMes.filter((l) => !l.pago);
+    return lista.length ? diasHtml(lista, hj) : '<div class="vazio">Nada sem check neste mês.</div>';
+  }
+  if (estado.filtro === "despesas" || estado.filtro === "receitas") {
+    const tipo = estado.filtro === "despesas" ? "despesa" : "receita";
+    doMes = doMes.filter((l) => l.tipo === tipo);
+    if (!doMes.length) return '<div class="vazio">Nada nesse filtro.</div>';
   }
   if (!doMes.length) return `<div class="vazio">Nenhum lançamento em ${mesCurto(mes + "-01")}.<br>Toque em + para adicionar.</div>`;
 
@@ -859,7 +894,7 @@ function extratoHtml(doMes, mes, hj) {
   }
   if (mesAtual) {
     // Hoje e atrasados ficam no topo da tela; aqui só a marca do dia, para o extrato seguir.
-    out += `<div class="hoje-div"><span>Hoje · ${nomeDia.format(deIso(hj))}</span></div>`;
+    if (futuros.length) out += `<div class="hoje-div"><span>Daqui para frente</span></div>`;
   }
   out += diasHtml(futuros, hj);
   return out;
@@ -876,8 +911,8 @@ function itemHtml(l, hj, op = {}) {
   else if (l.recorrente) tags.push(`<span class="tag">fixa</span>`);
   if (atrasado) tags.push(`<span class="tag atraso">atrasado</span>`);
   if (l.criado_por) tags.push(`<span class="tag quem q${ordemDe(l.criado_por)}" title="Lançado por ${esc(nomeDe(l.criado_por))}">${esc(nomeDe(l.criado_por))}</span>`);
-  if (Number(l.valor) === 0) tags.push(`<span class="tag atraso">valor a definir</span>`);
-  if (estado.pendentes.has(l.id)) tags.push(`<span class="tag atraso">aguardando internet</span>`);
+  if (Number(l.valor) === 0) tags.push(`<span class="tag definir">valor a definir</span>`);
+  if (estado.pendentes.has(l.id)) tags.push(`<span class="tag espera">aguardando internet</span>`);
   const feito = l.tipo === "receita" ? "recebido" : "pago";
   return `<div class="item ${baixado ? "baixado" : ""}">
     <button class="check ${l.pago ? "ok" : ""} ${atrasado ? "atrasado" : ""}" data-check="${l.id}" aria-pressed="${l.pago}" aria-label="${esc(l.descricao)}: ${l.pago ? `tirar check` : `marcar como ${feito}`}"><span class="bola">${IC.check}</span></button>
@@ -889,7 +924,7 @@ function itemHtml(l, hj, op = {}) {
       </div>
       <div class="dir">
         <div class="valor num ${l.tipo === "receita" ? "pos" : ""}">${l.tipo === "receita" ? "+" : "−"} ${brl.format(Number(l.valor))}</div>
-        ${op.saldo ? `<div class="saldo-linha num ${s < 0 ? "neg" : ""}">${brl.format(s)}</div>` : ""}
+        ${op.saldo ? `<div class="saldo-linha num ${s < 0 ? "neg" : ""}" title="Saldo depois deste lançamento">depois ${brl.format(s)}</div>` : ""}
       </div>
     </button>
   </div>`;
@@ -1188,7 +1223,9 @@ $("lanc-data").addEventListener("change", () => {
 $("lanc-desc").addEventListener("change", () => {
   if (estado.editando || $("lanc-valor").value.trim()) return;
   const d = $("lanc-desc").value.trim().toLowerCase();
-  const ultimo = [...estado.lancs].reverse().find((l) => l.descricao.toLowerCase() === d);
+  // O último com valor (um lançamento "a definir" de R$ 0 não serve de sugestão).
+  const iguais = [...estado.lancs].reverse().filter((l) => l.descricao.toLowerCase() === d);
+  const ultimo = iguais.find((l) => Number(l.valor) > 0) || iguais[0];
   if (ultimo) {
     definirTipo(ultimo.tipo);
     $("lanc-valor").value = mostrarValor(Number(ultimo.valor));
@@ -1201,18 +1238,38 @@ function preencherSugestoes() {
   for (const l of estado.lancs) vistos.set(l.descricao.toLowerCase(), l.descricao);
   $("sugestoes").innerHTML = [...vistos.values()].sort((a, b) => a.localeCompare(b, "pt-BR"))
     .map((d) => `<option value="${esc(d)}"></option>`).join("");
+  // As 4 descrições mais lançadas nos últimos 60 dias viram atalho (fixas e caixinhas ficam de fora).
+  const desde = somarDias(hoje(), -60), conta = new Map();
+  for (const l of estado.lancs) {
+    if (l.data < desde || l.recorrente || l.caixinha_id || l.parcelas) continue;
+    const k = l.descricao.toLowerCase();
+    conta.set(k, { d: l.descricao, n: (conta.get(k)?.n || 0) + 1 });
+  }
+  const top = [...conta.values()].filter((x) => x.n > 1).sort((a, b) => b.n - a.n).slice(0, 4);
+  $("lanc-recentes").innerHTML = top.map((x) => `<button type="button" class="chip" data-recente="${esc(x.d)}">${esc(x.d)}</button>`).join("");
 }
+$("lanc-recentes").onclick = (e) => {
+  const b = e.target.closest("[data-recente]");
+  if (!b) return;
+  $("lanc-desc").value = b.dataset.recente;
+  $("lanc-valor").value = "";
+  $("lanc-desc").dispatchEvent(new Event("change"));
+  adivinharNoForm();
+  $("lanc-valor").focus();
+  $("lanc-valor").select();
+};
 
 function abrirLanc(l, padrao = {}) {
   estado.editando = l || null;
   preencherSugestoes();
   $("lanc-erro").textContent = "";
   $("lanc-titulo").textContent = l ? "Editar lançamento" : "Novo lançamento";
-  $("lanc-valor").value = l ? mostrarValor(Number(l.valor)) : "";
-  $("lanc-desc").value = l ? l.descricao : "";
+  $("lanc-valor").value = l ? mostrarValor(Number(l.valor)) : padrao.valor != null ? mostrarValor(Number(padrao.valor)) : "";
+  $("lanc-desc").value = l ? l.descricao : padrao.descricao || "";
+  $("lanc-recentes").hidden = !!l;
   tipoSel = l ? l.tipo : padrao.tipo || "despesa";
-  estado.categoriaSel = l ? categoriaDe(l) : null;
-  catManual = !!l;
+  estado.categoriaSel = l ? categoriaDe(l) : padrao.categoria || null;
+  catManual = !!l || !!padrao.categoria;
   definirTipo(tipoSel);
   for (const id of ["lanc-cats-rot", "lanc-cats"]) $(id).hidden = !!l?.caixinha_id;
   abrirCats(false);
@@ -1231,6 +1288,7 @@ function abrirLanc(l, padrao = {}) {
   $("bloco-serie").hidden = !temSerie;
   $("lanc-serie").checked = false;
   $("lanc-acoes").hidden = !l;
+  $("lanc-de-novo").hidden = !l || !!l.caixinha_id;
   $("lanc-apagar-serie").hidden = !temSerie;
   $("lanc-estender").hidden = !(temSerie && l.recorrente && !estado.seriesDb?.get(l.grupo)?.sem_fim);
   $("lanc-hist").hidden = !l;
@@ -1367,6 +1425,13 @@ $("lanc-apagar-serie").onclick = async () => {
     await regravar(apagados);
     if (serieAntes?.sem_fim) { const r = await sb.from("series").update({ sem_fim: true }).eq("grupo", l.grupo); if (r.error) throw r.error; }
   });
+};
+
+$("lanc-de-novo").onclick = () => {
+  const l = estado.editando;
+  if (!l) return;
+  fecharPaineis(true);
+  abrirLanc(null, { tipo: l.tipo, data: hoje(), descricao: l.descricao, valor: l.valor, categoria: categoriaDe(l) });
 };
 
 $("lanc-estender").onclick = async () => {
