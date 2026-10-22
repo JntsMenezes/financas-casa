@@ -618,7 +618,7 @@ function barrasDiaHtml(pts, hj, m) {
   const frase = `No mês ${passado ? "entraram" : "entram"} <b class="num">${brl.format(m.entradas)}</b> e ${passado ? "saíram" : "saem"} <b class="num">${brl.format(m.saidas + Math.max(0, m.guardado))}</b>${m.guardado > 0 ? `, contando <b class="num">${brl.format(m.guardado)}</b> guardados` : ""}: ${sobraMes >= 0 ? "sobram" : "faltam"} <b class="num">${brl.format(Math.abs(sobraMes))}</b> do próprio mês.` +
     (Math.abs(m.inicio) >= 0.01 ? ` Com os <b class="num">${brl.format(m.inicio)}</b> que vieram de ${nomeDoMes(somarMeses(m.mes + "-01", -1))}, o dia ${n} fecha com <b class="num">${brl.format(m.fimMes)}</b>.` : "");
   return `<figure class="barras" style="margin-left:0;margin-right:0">
-    <div class="barras-cab"><span>Saldo dia a dia</span><span class="selo num">dia ${n} · ${brl.format(ult.saldo)}</span></div>
+    <div class="barras-cab"><span>Saldo dia a dia</span><span class="selo">${iHoje >= 0 ? `hoje ${hj.slice(8)}` : `${n} dias`}</span></div>
     <div class="barras-area" data-barras>
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Saldo de cada dia, de ${dataCurta(pts[0].data)} a ${dataCurta(ult.data)}, terminando em ${brl.format(ult.saldo)}">${barras}${marca}${temNeg ? `<line x1="0" x2="${W}" y1="${zero.toFixed(1)}" y2="${zero.toFixed(1)}" stroke="var(--vermelho)" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke" opacity=".7"/>` : ""}</svg>
       <div class="dica" hidden></div>
@@ -626,8 +626,8 @@ function barrasDiaHtml(pts, hj, m) {
     <div class="eixo">${marcas}</div>
     <p class="barras-frase">${frase}</p>
     <p class="nota-barras">Cada barra é o saldo do dia contando também o que ainda não tem check. Toque numa barra para ver o valor.</p>
-    ${menor.saldo < 0 ? `<p>Abaixo da linha vermelha o saldo fica negativo: a partir de ${dataCurta(pts.find((p) => p.saldo < 0).data)}, e o ponto mais baixo é <b class="num">${brl.format(menor.saldo)}</b> em ${dataCurta(menor.data)}.</p>`
-      : frente.length ? `<p>O ponto mais baixo daqui para frente é <b class="num" style="color:var(--ink)">${brl.format(menorFrente.saldo)}</b> em ${dataCurta(menorFrente.data)}.</p>` : ""}
+    ${menor.saldo < 0 ? `<p>Abaixo da linha vermelha o saldo fica negativo. O ponto mais baixo é <b class="num">${brl.format(menor.saldo)}</b> em ${dataCurta(menor.data)}.</p>`
+      : frente.length && !/apertado/.test(m.apoio || "") ? `<p>O ponto mais baixo daqui para frente é <b class="num" style="color:var(--ink)">${brl.format(menorFrente.saldo)}</b> em ${dataCurta(menorFrente.data)}.</p>` : ""}
   </figure>`;
 }
 
@@ -670,18 +670,21 @@ function hojeHtml(hj) {
   const atrasados = estado.lancs.filter((l) => !l.pago && l.data < hj);
   const deHoje = estado.lancs.filter((l) => l.data === hj);
   const falta = deHoje.filter((l) => !l.pago).length + atrasados.length;
+  const pagarAtras = atrasados.filter((l) => l.tipo === "despesa"), receberAtras = atrasados.filter((l) => l.tipo === "receita");
   const cab = `<div class="hoje-cab" id="hoje"><span>Hoje · ${nomeDia.format(deIso(hj))}</span></div>`;
   const naConta = r2(estado.lancs.reduce((s, l) => (l.pago ? s + sinal(l) : s), 0));
   const comTudo = saldoAte(hj);
   const seTudo = Math.abs(comTudo - naConta) >= 0.01
-    ? `<p class="se-tudo">Com check em tudo de hoje${atrasados.length ? " e nos atrasados" : ""}, a conta fica em <b class="num">${brl.format(comTudo)}</b>.</p>` : "";
+    ? `<p class="se-tudo">${atrasados.some((l) => l.tipo === "receita") ? "Quando o que falta receber entrar e tudo de hoje tiver check" : `Com check em tudo de hoje${atrasados.length ? " e nos atrasados" : ""}`}, a conta fica em <b class="num">${brl.format(comTudo)}</b>.</p>` : "";
   if (!atrasados.length && !deHoje.length) {
     return `<section class="bloco-hoje">${cab}<div class="em-dia"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Nada para hoje. Está tudo em dia.</span></div></section>`;
   }
   return `<section class="bloco-hoje" aria-label="Hoje e atrasados">${cab}
-    ${atrasados.length ? `<div class="secao-tit" id="atrasados">${atrasados.length === 1 ? "Passou da data sem check" : `${atrasados.length} passaram da data sem check`}</div>
-      <div class="lista">${atrasados.map((l) => itemHtml(l, hj, { data: true })).join("")}</div>` : ""}
-    ${deHoje.length ? `<div class="lista" ${atrasados.length ? 'style="margin-top:8px"' : ""}>${deHoje.map((l) => itemHtml(l, hj, { saldo: true })).join("")}</div>` : '<div class="nada-hoje">Nada lançado para hoje.</div>'}
+    ${pagarAtras.length ? `<div class="secao-tit" id="atrasados">${pagarAtras.length === 1 ? "Passou da data sem check" : `${pagarAtras.length} passaram da data sem check`}</div>
+      <div class="lista">${pagarAtras.map((l) => itemHtml(l, hj, { data: true })).join("")}</div>` : ""}
+    ${receberAtras.length ? `<div class="secao-tit neutro" ${pagarAtras.length ? 'style="margin-top:14px"' : 'id="atrasados"'}>Ainda não entrou</div>
+      <div class="lista">${receberAtras.map((l) => itemHtml(l, hj, { data: true })).join("")}</div>` : ""}
+    ${deHoje.length ? `<div class="lista" ${atrasados.length ? 'style="margin-top:8px"' : ""}>${deHoje.map((l) => itemHtml(l, hj, { saldo: true, depois: l.pago ? null : r2(naConta + sinal(l)) })).join("")}</div>` : '<div class="nada-hoje">Nada lançado para hoje.</div>'}
     ${!falta ? '<div class="em-dia"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>O de hoje já tem check.</span></div>' : seTudo}
   </section>`;
 }
@@ -763,7 +766,7 @@ function render() {
   if (mes === mesAtual) {
     titulo = `Hoje, ${nBrl(naConta, "hoje")}.<span class="l2">Dia ${dia}, ${nBrl(fimMes, "fim")}.</span>`;
     const partes = [aPagar && `faltam pagar <b class="num">${brl.format(aPagar)}</b>`, aReceber && `entrar <b class="num">${brl.format(aReceber)}</b>`].filter(Boolean);
-    apoio = (partes.length ? `Até lá ${partes.join(" e ")}` : "Tudo do mês já tem check") +
+    apoio = (partes.length ? `Até lá ${partes.join(" e ")}` : doMes.length ? "Tudo do mês já tem check" : `Nada lançado em ${nomeDoMes(mes)} ainda`) +
       (guardado > 0 ? `, e vocês guardam <b class="num">${brl.format(guardado)}</b>.` : ".") + aperto(pts, hj, entradas);
   } else {
     titulo = mes > mesAtual
@@ -780,7 +783,7 @@ function render() {
   // Avisos, cada um leva ao que precisa ser feito.
   const avisos = [];
   const menor = pts.reduce((a, p) => (p.saldo < a.saldo ? p : a), pts[0]);
-  if (menor.saldo < 0 && fim >= hj) {
+  if (menor.saldo < 0 && fim >= hj && mes < mesAtual) {
     const primeiro = pts.find((p) => p.saldo < 0 && p.data >= hj) || menor;
     avisos.push(`<button class="aviso ruim" data-ir-dia="${primeiro.data}">${IC.alerta}<span>O saldo previsto fica negativo em ${dataCurta(primeiro.data)}: <b class="num">${brl.format(primeiro.saldo)}</b>.</span>${IC.ir}</button>`);
   }
@@ -828,13 +831,17 @@ function render() {
         return `<button class="chip ativo chip-cat" data-limpar-cat aria-label="Tirar filtro ${esc(c.nome)}">${c.icone}${esc(c.nome)}<svg class="ic" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button>`; })()
     : "";
 
+  if (!estado.lancs.length) {
+    $("conteudo").innerHTML = `<div class="grade"><section class="col-resumo">${casalHtml()}${boasVindasHtml()}</section><section class="col-extrato"></section></div>`;
+    return;
+  }
   $("conteudo").innerHTML = `<div class="grade">
     <section class="col-resumo">
       ${casalHtml()}
-      <div class="frase"><h2>${titulo}</h2><p>${apoio}</p></div>
+      <div class="frase"><h2>${titulo}</h2><p>${apoio}</p>${mes === mesAtual ? '<button class="link conferir" type="button" data-conferir>Conferir com o banco</button>' : ""}</div>
       ${blocoHoje}
       ${avisos.length ? `<div class="avisos">${avisos.join("")}</div>` : ""}
-      ${barrasDiaHtml(pts, hj, { mes, entradas, saidas, guardado, inicio: inicioMes, fimMes })}
+      ${barrasDiaHtml(pts, hj, { mes, entradas, saidas, guardado, inicio: inicioMes, fimMes, apoio })}
       <nav class="atalhos" aria-label="Mais">
       ${doMes.length ? `<button class="linha-resumo" data-abrir-resumo>${svg('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>')}<span>Para onde foi<small>${MESES[Number(mes.slice(5)) - 1]}/${mes.slice(2, 4)}</small></span>${IC.ir}</button>` : ""}
       ${estado.caixinhas ? `<button class="linha-resumo" data-abrir-caixinhas>${caixaIcone("cofre")}<span>${estado.caixinhas.some((c) => !c.arquivada)
@@ -918,15 +925,17 @@ function extratoHtml(doMes, mes, hj) {
 }
 
 function itemHtml(l, hj, op = {}) {
-  const atrasado = !l.pago && l.data < hj;
+  const passou = !l.pago && l.data < hj;
+  const atrasado = passou && l.tipo === "despesa"; // receita que não entrou não é culpa de ninguém
   const baixado = l.pago && l.data < hj;
-  const s = estado.saldoApos.get(l.id);
+  const s = op.depois !== undefined ? op.depois : estado.saldoApos.get(l.id);
   const tags = [];
   if (op.data) tags.push(`<span class="tag num">${dataCurta(l.data)}</span>`);
   if (l.parcelas) tags.push(`<span class="tag num">${l.parcela}/${l.parcelas}</span>`);
   if (l.caixinha_id) tags.push(`<span class="tag guardar">${l.tipo === "despesa" ? "guardar" : "resgate"}</span>`);
   else if (l.recorrente) tags.push(`<span class="tag">fixa</span>`);
   if (atrasado) tags.push(`<span class="tag atraso">atrasado</span>`);
+  else if (passou) tags.push(`<span class="tag">não entrou</span>`);
   if (l.criado_por) tags.push(`<span class="tag quem q${ordemDe(l.criado_por)}" title="Lançado por ${esc(nomeDe(l.criado_por))}">${esc(nomeDe(l.criado_por))}</span>`);
   if (Number(l.valor) === 0) tags.push(`<span class="tag definir">valor a definir</span>`);
   if (estado.pendentes.has(l.id)) tags.push(`<span class="tag espera">aguardando internet</span>`);
@@ -941,7 +950,7 @@ function itemHtml(l, hj, op = {}) {
       </div>
       <div class="dir">
         <div class="valor num ${l.tipo === "receita" ? "pos" : ""}">${l.tipo === "receita" ? "+" : "−"} ${brl.format(Number(l.valor))}</div>
-        ${op.saldo ? `<div class="saldo-linha num ${s < 0 ? "neg" : ""}" title="Saldo depois deste lançamento">depois ${brl.format(s)}</div>` : ""}
+        ${op.saldo && s != null ? `<div class="saldo-linha num ${s < 0 ? "neg" : ""}" title="Saldo depois deste lançamento">depois ${brl.format(s)}</div>` : ""}
       </div>
     </button>
   </div>`;
@@ -961,6 +970,7 @@ $("conteudo").addEventListener("click", async (ev) => {
     return;
   }
   if (t("[data-abrir-caixinhas]")) { abrirCaixinhas(); return; }
+  if (t("[data-conferir]")) { abrirConferir(); return; }
   if (t("[data-abrir-ano]")) { abrirAno(Number(estado.mes.slice(0, 4))); return; }
   if (t("[data-enviar-fila]")) {
     if (!navigator.onLine) { avisar("Ainda sem internet. Assim que conectar, o app envia sozinho."); return; }
@@ -1082,7 +1092,7 @@ window.addEventListener("scroll", () => {
 
 // ---------- painéis ----------
 
-const PAINEIS = ["painel-lanc", "painel-ajustes", "painel-historico", "painel-series", "painel-resumo", "painel-busca", "painel-limites", "painel-caixinhas", "painel-caixa", "painel-mov", "painel-ano"];
+const PAINEIS = ["painel-conferir", "painel-lanc", "painel-ajustes", "painel-historico", "painel-series", "painel-resumo", "painel-busca", "painel-limites", "painel-caixinhas", "painel-caixa", "painel-mov", "painel-ano"];
 function abrirPainel(p) {
   fecharPaineis(true);
   $("fundo").hidden = false;
@@ -1290,13 +1300,13 @@ function abrirLanc(l, padrao = {}) {
   definirTipo(tipoSel);
   for (const id of ["lanc-cats-rot", "lanc-cats"]) $(id).hidden = !!l?.caixinha_id;
   abrirCats(false);
-  $("lanc-semfim").checked = false;
+  $("lanc-semfim").checked = !!padrao.semFim;
   $("bloco-semfim").hidden = !estado.seriesDb;
   const dataPadrao = padrao.data || (estado.mes === hoje().slice(0, 7) ? hoje() : estado.mes + "-01");
   $("lanc-data").value = l ? l.data : dataPadrao;
   $("lanc-pago").checked = l ? l.pago : dataPadrao <= hoje();
   $("bloco-repetir").hidden = !!l;
-  $("lanc-repetir").value = "nao";
+  $("lanc-repetir").value = l ? "nao" : padrao.repetir || "nao";
   $("lanc-meses").value = 12;
   $("lanc-parc").value = 1;
   $("lanc-parcs").value = 2;
@@ -2158,6 +2168,98 @@ function analiseAno(ano, meses, tot, cats) {
   if (n < 3) out.push({ tom: "", linhas: [`Esta leitura usa ${n} ${n === 1 ? "mês" : "meses"} de lançamentos. Fica mais precisa a cada mês.`] });
   return out;
 }
+
+// ---------- conferir com o banco ----------
+
+// Valor que pode ser negativo (conta no cheque especial): "-150,30".
+function lerSaldo(txt) {
+  const s = String(txt).trim(), neg = /^[-−]/.test(s) || /^R\$\s*[-−]/.test(s);
+  const v = lerValor(s.replace(/[-−]/g, ""));
+  return Number.isFinite(v) ? (neg ? -v : v) : NaN;
+}
+const naContaAgora = () => r2(estado.lancs.reduce((s, l) => (l.pago ? s + sinal(l) : s), 0));
+
+function abrirConferir() {
+  $("conferir-app").textContent = brl.format(naContaAgora());
+  $("conferir-valor").value = "";
+  $("conferir-previa").textContent = "";
+  $("conferir-erro").textContent = "";
+  abrirPainel($("painel-conferir"));
+  setTimeout(() => $("conferir-valor").focus(), 300);
+}
+$("conferir-valor").addEventListener("input", () => {
+  const v = lerSaldo($("conferir-valor").value), dif = r2(v - naContaAgora());
+  $("conferir-previa").textContent = !Number.isFinite(v) ? ""
+    : Math.abs(dif) < 0.01 ? "Bate com o app. Nada a ajustar."
+    : `Diferença de ${brl.format(Math.abs(dif))}: entra um ajuste de ${dif > 0 ? "entrada" : "saída"} com check, hoje, para a conta bater.`;
+});
+$("painel-conferir").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const v = lerSaldo($("conferir-valor").value);
+  if (!Number.isFinite(v)) { $("conferir-erro").textContent = "Digite o saldo do banco, por exemplo 1.250,30 ou -80,00."; return; }
+  const dif = r2(v - naContaAgora());
+  if (Math.abs(dif) < 0.01) { fecharPaineis(); avisar("Bate com o banco."); return; }
+  const btn = $("conferir-salvar");
+  btn.disabled = true;
+  try {
+    const linha = {
+      id: crypto.randomUUID(), casa_id: estado.casa.id, descricao: "Ajuste com o banco", tipo: dif > 0 ? "receita" : "despesa",
+      valor: Math.abs(dif), data: hoje(), pago: true, recorrente: false, parcela: null, parcelas: null, grupo: null,
+      ...(estado.temCategoria ? { categoria: dif > 0 ? "ajuste" : "outros" } : {}),
+    };
+    const { error } = await sb.from("lancamentos").upsert(linha);
+    if (error) throw error;
+    fecharPaineis();
+    await carregar();
+    avisar(`Ajustado: a conta agora mostra ${brl.format(v)}.`, () => apagarIds([linha.id]));
+  } catch (e) {
+    $("conferir-erro").textContent = msgErro(e);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ---------- primeira vez ----------
+
+function boasVindasHtml() {
+  const sozinho = estado.membros.size < 2;
+  return `<section class="boas-vindas">
+    <h2>Vamos começar.</h2>
+    <p>O app soma o que já tem <b>check</b> (pago ou recebido) e prevê o resto do mês com o que ainda não tem. Em três passos ele já fala com vocês.</p>
+    <form class="passo" id="bv-saldo" novalidate>
+      <span class="passo-n">1</span>
+      <div><b>Quanto tem na conta hoje?</b><small>O saldo que o banco mostra agora.</small>
+        <div class="linha-nome"><input id="bv-saldo-valor" class="num" inputmode="decimal" placeholder="0,00" autocomplete="off" aria-label="Saldo de hoje"><button class="btn" type="submit">Salvar</button></div>
+      </div>
+    </form>
+    <button class="passo" type="button" data-bv="receita"><span class="passo-n">2</span><div><b>O que entra todo mês</b><small>Salário, vale, renda extra. Toque para lançar.</small></div>${IC.ir}</button>
+    <button class="passo" type="button" data-bv="fixa"><span class="passo-n">3</span><div><b>As contas fixas</b><small>Aluguel, luz, internet, escola. Toque para lançar.</small></div>${IC.ir}</button>
+    ${sozinho ? `<button class="passo" type="button" data-bv="convidar"><span class="passo-n">4</span><div><b>Chame quem divide a casa</b><small>Os dois veem e lançam juntos, cada um no seu celular.</small></div>${IC.ir}</button>` : ""}
+  </section>`;
+}
+$("conteudo").addEventListener("submit", async (ev) => {
+  if (ev.target.id !== "bv-saldo") return;
+  ev.preventDefault();
+  const v = lerSaldo($("bv-saldo-valor").value);
+  if (!Number.isFinite(v)) { avisar("Digite o saldo, por exemplo 1.250,30."); return; }
+  const linha = {
+    id: crypto.randomUUID(), casa_id: estado.casa.id, descricao: "Saldo inicial", tipo: v >= 0 ? "receita" : "despesa",
+    valor: Math.abs(v), data: hoje(), pago: true, recorrente: false, parcela: null, parcelas: null, grupo: null,
+    ...(estado.temCategoria || !estado.lancs.length ? { categoria: v >= 0 ? "ajuste" : "outros" } : {}),
+  };
+  const { error } = await sb.from("lancamentos").upsert(linha);
+  if (error) { avisar(msgErro(error)); return; }
+  await carregar();
+  avisar("Saldo de hoje salvo. Agora o que entra todo mês.");
+  abrirLanc(null, { tipo: "receita", repetir: "mensal", semFim: true });
+});
+$("conteudo").addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-bv]");
+  if (!b) return;
+  if (b.dataset.bv === "receita") abrirLanc(null, { tipo: "receita", repetir: "mensal", semFim: true });
+  else if (b.dataset.bv === "fixa") abrirLanc(null, { tipo: "despesa", repetir: "mensal", semFim: true });
+  else $("btn-convidar").click();
+});
 
 // ---------- busca ----------
 

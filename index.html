@@ -213,6 +213,22 @@
   .recentes { display: flex; flex-wrap: wrap; gap: 8px; margin: -6px 0 14px; }
   .recentes:empty { display: none; }
   .recentes .chip { padding: 0 12px; font-size: 13.5px; font-weight: 500; }
+  .lanc-rodape { position: sticky; bottom: calc(-18px - env(safe-area-inset-bottom)); z-index: 2; margin: 8px -18px 0; padding: 8px 18px calc(18px + env(safe-area-inset-bottom)); background: var(--card); border-top: 1px solid var(--line); }
+  .lanc-rodape .erro:empty { min-height: 0; margin: 0; }
+  .frase .conferir { padding: 6px 0; min-height: 40px; font-weight: 600; }
+  .secao-tit.neutro { color: var(--muted); }
+  .boas-vindas { padding: 22px 2px 8px; }
+  .boas-vindas h2 { margin: 0; font-size: clamp(31px, 9vw, 40px); font-weight: 800; letter-spacing: -.035em; line-height: 1.08; }
+  .boas-vindas > p { margin: 12px 0 18px; color: var(--muted); font-size: 15.5px; line-height: 1.5; max-width: 46ch; }
+  .boas-vindas > p b { color: var(--ink); }
+  .passo { display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left; padding: 14px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: var(--raio); background: var(--card); color: var(--ink); font-size: 15px; }
+  .passo > div { flex: 1; min-width: 0; display: grid; gap: 3px; }
+  .passo small { color: var(--muted); font-size: 13.5px; }
+  .passo .linha-nome { margin: 10px 0 0; }
+  .passo .linha-nome input { width: 0; flex: 1; }
+  .passo .linha-nome .btn { padding: 0 14px; }
+  .passo .ir { align-self: center; color: var(--muted); }
+  .passo-n { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--primaria-bg); color: var(--primaria); font-family: var(--mono); font-size: 13px; font-weight: 600; }
   .se-tudo { margin: 10px 2px 0; font-size: 14px; color: var(--muted); line-height: 1.45; }
   .se-tudo b { color: var(--ink); }
   .ultimos { display: grid; gap: 2px; margin-top: 8px; }
@@ -359,7 +375,7 @@
   .alca::before { content: ""; width: 40px; height: 5px; border-radius: 3px; background: var(--line); }
   .painel h2 { margin: 0 0 16px; font-size: 20px; font-weight: 650; letter-spacing: -.02em; }
   .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--bg); border-radius: 14px; padding: 4px; margin-bottom: 16px; }
-  .seg button { border: 0; background: transparent; min-height: 42px; border-radius: 10px; font-weight: 600; color: var(--muted); transition: background .18s var(--sai), color .18s; }
+  .seg button { border: 0; background: transparent; min-height: 44px; border-radius: 10px; font-weight: 600; color: var(--muted); transition: background .18s var(--sai), color .18s; }
   .seg button.ativo[data-tipo="despesa"] { background: var(--card); color: var(--vermelho); box-shadow: var(--sombra); }
   .seg button.ativo[data-tipo="receita"] { background: var(--card); color: var(--verde); box-shadow: var(--sombra); }
   .seg.tres { grid-template-columns: repeat(3, 1fr); }
@@ -697,8 +713,10 @@
 
   <label class="toggle" id="bloco-serie" hidden><span>Mudar também os próximos da série</span><input type="checkbox" id="lanc-serie"></label>
 
-  <div class="erro" id="lanc-erro" role="alert"></div>
-  <button class="btn" type="submit" id="lanc-salvar">Salvar</button>
+  <div class="lanc-rodape">
+    <div class="erro" id="lanc-erro" role="alert"></div>
+    <button class="btn" type="submit" id="lanc-salvar">Salvar</button>
+  </div>
   <div class="acoes-extra" id="lanc-acoes" hidden>
     <button class="btn texto" type="button" id="lanc-de-novo">Lançar de novo hoje</button>
     <button class="btn texto" type="button" id="lanc-estender" hidden>Repetir mais 12 vezes</button>
@@ -839,6 +857,17 @@
   </div>
   <div id="ano-corpo"></div>
 </div>
+
+<!-- Conferir com o banco -->
+<form class="painel" id="painel-conferir" hidden novalidate>
+  <div class="alca" aria-hidden="true"></div>
+  <div class="painel-cab"><h2>Conferir com o banco</h2><button class="icone" type="button" data-fechar-painel aria-label="Fechar"><svg class="ic" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button></div>
+  <p class="nota" style="margin-top:-6px">Somando tudo o que tem check, o app mostra <b class="num" id="conferir-app">R$ 0,00</b> na conta. Se o banco mostra outro valor, digite aqui e o app ajusta.</p>
+  <label class="campo valor-grande"><span>Saldo no banco agora (R$)</span><input id="conferir-valor" class="num" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>
+  <p class="previa" id="conferir-previa" aria-live="polite"></p>
+  <div class="erro" id="conferir-erro" role="alert"></div>
+  <button class="btn" type="submit" id="conferir-salvar">Ajustar</button>
+</form>
 
 <!-- Busca -->
 <div class="painel painel-busca" id="painel-busca" hidden>
