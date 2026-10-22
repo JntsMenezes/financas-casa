@@ -6,6 +6,8 @@ import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
 const APP = "https://jntsmenezes.github.io/financas-casa/";
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+// Só serviços de push conhecidos (o banco também confere ao gravar).
+const PUSH_OK = /^https:\/\/(fcm\.googleapis\.com|updates\.push\.services\.mozilla\.com|[a-z0-9.-]+\.push\.apple\.com|[a-z0-9.-]+\.notify\.windows\.com)\//;
 const dia = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
 
 Deno.serve(async (req) => {
@@ -30,10 +32,15 @@ Deno.serve(async (req) => {
   }
   if (!porCasa.size) return Response.json({ casas: 0, enviados: 0 });
 
-  const { data: inscricoes } = await sb.from("push_inscricoes").select("*").in("casa_id", [...porCasa.keys()]);
-  let enviados = 0, removidos = 0;
+  const { data: inscricoes, error: eIns } = await sb.from("push_inscricoes").select("*").in("casa_id", [...porCasa.keys()]);
+  if (eIns) {
+    console.error("lembretes: leitura das inscrições", eIns);
+    return Response.json({ erro: eIns.message }, { status: 500 });
+  }
+  let enviados = 0, removidos = 0, falhas = 0;
 
   for (const ins of inscricoes ?? []) {
+    if (!PUSH_OK.test(ins.endpoint)) { falhas++; console.error("lembretes: endpoint fora da lista", new URL(ins.endpoint).host); continue; }
     const lista = porCasa.get(ins.casa_id)!;
     const linha = (quando: string) => {
       const itens = lista.filter((c) => c.data === quando);
@@ -49,16 +56,20 @@ Deno.serve(async (req) => {
       url: APP,
     });
     try {
-      await webpush.sendNotification({ endpoint: ins.endpoint, keys: { p256dh: ins.p256dh, auth: ins.auth } }, payload);
+      await webpush.sendNotification({ endpoint: ins.endpoint, keys: { p256dh: ins.p256dh, auth: ins.auth } }, payload, { timeout: 10000, TTL: 3600 });
       enviados++;
     } catch (e) {
       // Celular desinstalou o app ou tirou a permissão: a inscrição não vale mais.
       const status = (e as { statusCode?: number }).statusCode;
       if (status === 404 || status === 410) {
-        await sb.from("push_inscricoes").delete().eq("endpoint", ins.endpoint);
-        removidos++;
+        const { error: eDel } = await sb.from("push_inscricoes").delete().eq("endpoint", ins.endpoint);
+        if (eDel) console.error("lembretes: apagar inscrição vencida", eDel); else removidos++;
+      } else {
+        falhas++;
+        console.error("lembretes: envio falhou", status, (e as Error).message, new URL(ins.endpoint).host);
       }
     }
   }
-  return Response.json({ casas: porCasa.size, enviados, removidos });
+  // Tudo falhou: responde erro para aparecer nos registros do agendamento.
+  return Response.json({ casas: porCasa.size, enviados, removidos, falhas }, { status: falhas && !enviados ? 500 : 200 });
 });

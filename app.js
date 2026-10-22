@@ -106,6 +106,8 @@ const estado = {
   pendentes: new Set(),  // ids esperando internet
   filtroCat: null,
   categoriaSel: null,
+  cargaFalhou: false,    // a última atualização não veio: a tela pode estar velha
+  aoVivo: false,         // canal de mudanças em tempo real conectado
 };
 
 // ---------- datas e números ----------
@@ -134,7 +136,7 @@ function lerValor(txt) {
   let s = String(txt).trim().replace(/[R$\s]/g, "");
   if (!s) return NaN;
   if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
-  else if ((s.match(/\./g) || []).length > 1) s = s.replace(/\./g, "");
+  else if ((s.match(/\./g) || []).length > 1 || /^\d{1,3}\.\d{3}$/.test(s)) s = s.replace(/\./g, "");
   const n = Number(s);
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : NaN;
 }
@@ -177,6 +179,15 @@ async function regravar(linhas) {
   if (!linhas.length) return;
   const { error } = await sb.from("lancamentos").upsert(linhas.map((l) => ({ ...l })));
   if (error) throw error;
+}
+// Desfazer uma edição: volta só os campos editáveis de quem ainda existe.
+async function voltarCampos(linhas) {
+  const rs = await Promise.all(linhas.map((x) => sb.from("lancamentos").update({
+    descricao: x.descricao, tipo: x.tipo, valor: x.valor, data: x.data, pago: x.pago,
+    ...(estado.temCategoria ? { categoria: x.categoria } : {}),
+  }).eq("id", x.id)));
+  const r = rs.find((x) => x.error);
+  if (r) throw r.error;
 }
 async function apagarIds(ids) {
   if (!ids.length) return;
@@ -249,7 +260,7 @@ async function abrirCasa() {
   }
   const { data, error } = await sb.from("membros").select("casa_id, casas(id, nome, codigo)").limit(1);
   if (error) {
-    if (cache) { avisar(`Sem internet. Mostrando os dados de ${quando(cache.quando)}.`); return; }
+    if (cache) { avisar(ehErroRede(error) ? `Sem internet. Mostrando os dados de ${quando(cache.quando)}.` : msgErro(error)); return; }
     avisar(msgErro(error)); mostrarTela("tela-casa"); return;
   }
   if (!data.length) { limparCache(); mostrarTela("tela-casa"); return; }
@@ -266,13 +277,15 @@ async function abrirCasa() {
 async function manterSeries() {
   if (!estado.seriesDb || ![...estado.seriesDb.values()].some((s) => s.sem_fim)) return;
   const { data, error } = await sb.rpc("manter_series", { p_casa: estado.casa.id });
-  if (!error && data > 0) await carregar();
+  if (error) { avisar("Não consegui criar os próximos meses das contas fixas: " + msgErro(error)); return; }
+  if (data > 0) await carregar();
 }
 
 async function carregarMembros() {
   let r = await sb.from("membros").select("user_id, nome, email").eq("casa_id", estado.casa.id);
   // Banco ainda sem as colunas de nome (antes do 02_historico.sql).
-  if (r.error) r = await sb.from("membros").select("user_id").eq("casa_id", estado.casa.id);
+  if (r.error?.code === "42703") r = await sb.from("membros").select("user_id").eq("casa_id", estado.casa.id);
+  if (r.error) { avisar(msgErro(r.error)); return; } // mantém os nomes que já estavam na tela
   estado.membros = new Map((r.data || []).map((m) => [m.user_id, m]));
 }
 
@@ -285,13 +298,20 @@ function nomeDe(uid) {
   return uid === estado.sessao?.user?.id ? doEmail(estado.sessao.user.email) || "Você" : "Alguém";
 }
 
+// Devolve false quando não conseguiu atualizar; a tela mostra o aviso até a próxima carga boa.
+let seqCarga = 0;
+const tabelaAusente = (r) => /^(42P01|PGRST205)$/.test(r.error?.code || "");
 async function carregar() {
-  const todos = [];
+  const seq = ++seqCarga;
+  const todos = new Map();
   for (let de = 0; ; de += 1000) {
     const { data, error } = await sb.from("lancamentos").select("*")
-      .eq("casa_id", estado.casa.id).order("data").order("criado_em").range(de, de + 999);
-    if (error) { avisar(msgErro(error)); return; }
-    todos.push(...data);
+      .eq("casa_id", estado.casa.id).order("data").order("criado_em").order("id").range(de, de + 999);
+    if (error) {
+      if (seq === seqCarga) { estado.cargaFalhou = true; render(); avisar(msgErro(error)); }
+      return false;
+    }
+    for (const l of data) todos.set(l.id, l);
     if (data.length < 1000) break;
   }
   const [s, lim, cx] = await Promise.all([
@@ -299,22 +319,34 @@ async function carregar() {
     sb.from("limites").select("categoria, valor").eq("casa_id", estado.casa.id),
     sb.from("caixinhas").select("*").eq("casa_id", estado.casa.id).order("ordem").order("criado_em"),
   ]);
-  estado.seriesDb = s.error ? null : new Map(s.data.map((x) => [x.grupo, x]));
-  estado.limites = lim.error ? null : new Map(lim.data.map((x) => [x.categoria, Number(x.valor)]));
-  estado.caixinhas = cx.error ? null : cx.data;
-  definirLancs(aplicarFila(todos));
+  if (seq !== seqCarga) return true; // uma carga mais nova já está a caminho
+  // Só "tabela não existe" desliga o recurso; erro passageiro mantém o que já estava.
+  if (!s.error || tabelaAusente(s)) estado.seriesDb = s.error ? null : new Map(s.data.map((x) => [x.grupo, x]));
+  if (!lim.error || tabelaAusente(lim)) estado.limites = lim.error ? null : new Map(lim.data.map((x) => [x.categoria, Number(x.valor)]));
+  if (!cx.error || tabelaAusente(cx)) estado.caixinhas = cx.error ? null : cx.data;
+  const falha = [s, lim, cx].find((r) => r.error && !tabelaAusente(r));
+  estado.cargaFalhou = !!falha;
+  definirLancs(aplicarFila([...todos.values()]));
+  if (falha) { avisar(msgErro(falha.error)); return false; }
   gravarCache();
+  return true;
 }
 
 // ---------- sem internet: lançar e dar check ficam guardados e vão depois ----------
 
-const CHAVE_FILA = "fin-fila-v1";
-function lerFila() {
-  try { return (JSON.parse(localStorage.getItem(CHAVE_FILA)) || []).filter((o) => o.casa === estado.casa?.id); } catch (e) { return []; }
-}
-function gravarFila(f) { try { localStorage.setItem(CHAVE_FILA, JSON.stringify(f)); } catch (e) {} }
+const CHAVE_FILA = "fin-fila-v1", CHAVE_RECUSADOS = "fin-fila-recusados-v1";
+function lerCrua(chave = CHAVE_FILA) { try { return JSON.parse(localStorage.getItem(chave)) || []; } catch (e) { return []; } }
+function lerFila() { return lerCrua().filter((o) => o.casa === estado.casa?.id); }
+function gravarFila(f, chave = CHAVE_FILA) { try { localStorage.setItem(chave, JSON.stringify(f)); return true; } catch (e) { return false; } }
+function recusados() { return lerCrua(CHAVE_RECUSADOS).filter((o) => o.casa === estado.casa?.id); }
 const ehErroRede = (e) => !navigator.onLine || /fetch|NetworkError|Load failed|network/i.test((e && e.message) || String(e));
-function enfileirar(op) { gravarFila([...lerFila(), { ...op, casa: estado.casa.id }]); }
+// Dado inválido, regra do banco ou permissão: tentar de novo não resolve.
+const ehRecusaDefinitiva = (e) => /^(22|23|42|PGRST2)/.test(e?.code || "");
+function enfileirar(op) {
+  if (!gravarFila([...lerCrua(), { ...op, qid: crypto.randomUUID(), casa: estado.casa.id }])) {
+    throw new Error("Sem espaço para guardar no aparelho. Conecte à internet e tente de novo.");
+  }
+}
 function idsPendentes() { return new Set(lerFila().flatMap((o) => (o.op === "insert" ? o.linhas.map((l) => l.id) : [o.id]))); }
 
 // Põe por cima dos dados do banco o que ainda não foi enviado.
@@ -332,26 +364,29 @@ function aplicarFila(lista) {
 let enviandoFila = false;
 async function enviarFila() {
   if (enviandoFila || !navigator.onLine || !estado.casa) return;
-  let fila = lerFila();
+  // Itens de versões antigas ainda sem id próprio.
+  const crua = lerCrua();
+  if (crua.some((o) => !o.qid)) gravarFila(crua.map((o) => (o.qid ? o : { ...o, qid: crypto.randomUUID() })));
+  const fila = lerFila();
   if (!fila.length) return;
   enviandoFila = true;
-  let enviados = 0;
+  let enviados = 0, recusou = 0;
   try {
-    while (fila.length) {
-      const o = fila[0];
+    for (const o of fila) {
       const r = o.op === "insert"
         ? await sb.from("lancamentos").upsert(o.linhas)
         : await sb.from("lancamentos").update(o.campos).eq("id", o.id);
-      if (r.error && ehErroRede(r.error)) break;
-      if (r.error) avisar("Um item guardado foi recusado pelo banco: " + msgErro(r.error));
-      fila = fila.slice(1);
-      gravarFila(fila);
-      enviados++;
+      if (r.error && !ehRecusaDefinitiva(r.error)) break; // rede, servidor fora, sessão vencida: tenta depois
+      if (r.error) { gravarFila([...lerCrua(CHAVE_RECUSADOS), { ...o, erro: msgErro(r.error) }], CHAVE_RECUSADOS); recusou++; }
+      else enviados++;
+      gravarFila(lerCrua().filter((x) => x.qid !== o.qid));
     }
   } finally { enviandoFila = false; }
-  if (enviados) {
+  if (enviados || recusou) {
     await carregar();
-    avisar(enviados === 1 ? "O que estava guardado foi enviado." : `${enviados} itens guardados foram enviados.`);
+    avisar(recusou
+      ? `${recusou === 1 ? "1 item guardado foi recusado" : `${recusou} itens guardados foram recusados`} pelo banco. Veja o aviso na tela.`
+      : enviados === 1 ? "O que estava guardado foi enviado." : `${enviados} itens guardados foram enviados.`);
   }
 }
 window.addEventListener("online", enviarFila);
@@ -384,7 +419,11 @@ function assinarMudancas() {
       clearTimeout(recarregarTimer);
       recarregarTimer = setTimeout(carregar, 400);
     })
-    .subscribe();
+    .subscribe((st) => {
+      const antes = estado.aoVivo;
+      estado.aoVivo = st === "SUBSCRIBED";
+      if (antes !== estado.aoVivo) render();
+    });
 }
 
 document.addEventListener("visibilitychange", async () => {
@@ -472,7 +511,7 @@ $("lista-series").addEventListener("change", async (e) => {
     await definirSemFim(s, c.checked);
     renderSeries();
     avisar(c.checked ? `"${s.ultimo.descricao}" agora se repete sempre.` : `"${s.ultimo.descricao}" parou de se repetir sozinha.`);
-  } catch (err) { c.checked = !c.checked; c.disabled = false; avisar(msgErro(err)); }
+  } catch (err) { await carregar(); renderSeries(); avisar(msgErro(err)); }
 });
 
 $("lista-series").addEventListener("click", async (e) => {
@@ -565,12 +604,12 @@ function casalHtml() {
   const ids = [...estado.membros.keys()].slice(0, 2);
   if (!ids.length && estado.sessao) ids.push(estado.sessao.user.id);
   const nomes = ids.map((u) => nomeDe(u));
-  const online = navigator.onLine;
+  const online = navigator.onLine && estado.aoVivo;
   const ultimo = estado.lancs.filter((l) => l.criado_por).reduce((a, l) => (!a || l.criado_em > a.criado_em ? l : a), null);
   return `<div class="casal">
     <span class="pares" aria-hidden="true">${ids.map((u, i) => `<span class="ini bg-q${i + 1}">${esc((nomeDe(u) || "?").charAt(0).toUpperCase())}</span>`).join("")}</span>
     <span class="nomes">${esc(nomes.join(" e "))}</span>
-    <span class="selo ${online ? "" : "off"}">${online ? (ids.length > 1 ? "juntos, ao vivo" : "ao vivo") : "sem internet"}</span>
+    <span class="selo ${online ? "" : "off"}">${online ? (ids.length > 1 ? "juntos, ao vivo" : "ao vivo") : navigator.onLine ? "conectando" : "sem internet"}</span>
   </div>${ultimo ? `<p class="ultimo"><i class="q${ordemDe(ultimo.criado_por)}"></i>${esc(nomeDe(ultimo.criado_por))} lançou por último: ${esc(ultimo.descricao)}, ${/00:00$/.test(quando(ultimo.criado_em)) ? dataCurta(iso(new Date(ultimo.criado_em))) : quando(ultimo.criado_em)}.</p>` : ""}`;
 }
 
@@ -632,6 +671,13 @@ function render() {
     const pagar = atrasados.filter((l) => l.tipo === "despesa").reduce((s, l) => s + Number(l.valor), 0);
     const partes = [receber && `${brl.format(receber)} a receber`, pagar && `${brl.format(pagar)} a pagar`].filter(Boolean).join(" e ");
     avisos.push(`<button class="aviso atencao" data-ir-atrasados="${atrasados[0].data.slice(0, 7)}">${IC.alerta}<span>${atrasados.length === 1 ? "1 lançamento passou" : `${atrasados.length} lançamentos passaram`} da data sem check: ${partes}.</span>${IC.ir}</button>`);
+  }
+  if (estado.cargaFalhou) {
+    avisos.unshift(`<button class="aviso atencao" data-recarregar>${IC.alerta}<span>Não consegui atualizar agora. O que está na tela pode estar desatualizado. Tocar para tentar de novo.</span>${IC.ir}</button>`);
+  }
+  const rec = recusados();
+  if (rec.length) {
+    avisos.unshift(`<button class="aviso ruim" data-ver-recusados>${IC.alerta}<span>${rec.length === 1 ? "1 item feito sem internet foi recusado" : `${rec.length} itens feitos sem internet foram recusados`} pelo banco e não entrou no saldo.</span>${IC.ir}</button>`);
   }
   estado.pendentes = idsPendentes();
   if (estado.pendentes.size) {
@@ -776,6 +822,14 @@ $("conteudo").addEventListener("click", async (ev) => {
   if (t("[data-filtro]")) { estado.filtro = t("[data-filtro]").dataset.filtro; estado.filtroCat = null; render(); return; }
   if (t("[data-limpar-cat]")) { estado.filtroCat = null; render(); return; }
   if (t("[data-abrir-resumo]")) { abrirResumo(); return; }
+  if (t("[data-recarregar]")) { if (await carregar()) avisar("Atualizado."); return; }
+  if (t("[data-ver-recusados]")) {
+    const rec = recusados();
+    const desc = (o) => (o.op === "insert" ? o.linhas.map((l) => `${l.descricao} (${brl.format(Number(l.valor))})`).join(", ") : `check em ${estado.lancs.find((l) => l.id === o.id)?.descricao || "um lançamento"}`);
+    const ok = await confirmar("Itens recusados", `${rec.map((o) => `${desc(o)}: ${o.erro}`).join(" · ")}. Lance de novo o que ainda faltar e descarte este aviso.`, "Descartar");
+    if (ok) { gravarFila(lerCrua(CHAVE_RECUSADOS).filter((o) => o.casa !== estado.casa.id), CHAVE_RECUSADOS); render(); }
+    return;
+  }
   if (t("[data-abrir-caixinhas]")) { abrirCaixinhas(); return; }
   if (t("[data-abrir-ano]")) { abrirAno(Number(estado.mes.slice(0, 4))); return; }
   if (t("[data-enviar-fila]")) {
@@ -813,15 +867,15 @@ async function alternarPago(id) {
   document.querySelector(`[data-check="${id}"]`)?.classList.add("pulso");
   vibrar(l.pago ? 10 : 6);
   const guardar = () => {
-    enfileirar({ op: "update", id, campos: { pago: l.pago } });
+    try { enfileirar({ op: "update", id, campos: { pago: l.pago } }); } catch (e) { l.pago = antes; render(); avisar(msgErro(e)); return; }
     gravarCache();
     render();
     avisar("Sem internet: o check ficou guardado e vai quando conectar.");
   };
   if (!navigator.onLine) return guardar();
-  const { error } = await sb.from("lancamentos").update({ pago: l.pago }).eq("id", id);
+  const { data: feitos, error } = await sb.from("lancamentos").update({ pago: l.pago }).eq("id", id).select("id");
   if (error && ehErroRede(error)) return guardar();
-  if (error) { l.pago = antes; render(); avisar(msgErro(error)); return; }
+  if (error || !feitos.length) { l.pago = antes; await carregar(); avisar(error ? msgErro(error) : "Esse lançamento foi apagado em outro celular."); return; }
   const feito = l.tipo === "receita" ? "Recebido" : "Pago";
   avisar(l.pago ? `${feito}: ${l.descricao}` : `Check tirado: ${l.descricao}`, async () => {
     const r = await sb.from("lancamentos").update({ pago: antes }).eq("id", id);
@@ -1112,13 +1166,14 @@ $("painel-lanc").addEventListener("submit", async (ev) => {
       const campos = { descricao, tipo: tipoSel, valor, ...cat };
       const naSerie = l.grupo && $("lanc-serie").checked;
       const antes = estado.lancs.filter((x) => x.id === l.id || (naSerie && x.grupo === l.grupo && x.data > l.data)).map((x) => ({ ...x }));
-      let r = await sb.from("lancamentos").update({ ...campos, data, pago: $("lanc-pago").checked }).eq("id", l.id);
+      let r = await sb.from("lancamentos").update({ ...campos, data, pago: $("lanc-pago").checked }).eq("id", l.id).select("id");
       if (r.error) throw r.error;
+      if (!r.data.length) { await carregar(); throw new Error("Esse lançamento foi apagado em outro celular."); }
       if (naSerie) {
         r = await sb.from("lancamentos").update(campos).eq("grupo", l.grupo).gt("data", l.data);
         if (r.error) throw r.error;
       }
-      avisar(antes.length > 1 ? `${antes.length} lançamentos alterados.` : "Alterado.", () => regravar(antes));
+      avisar(antes.length > 1 ? `${antes.length} lançamentos alterados.` : "Alterado.", () => voltarCampos(antes));
     } else {
       const base = { casa_id: estado.casa.id, descricao, tipo: tipoSel, valor, ...cat };
       const pagoPrimeiro = $("lanc-pago").checked;
@@ -1156,13 +1211,19 @@ $("painel-lanc").addEventListener("submit", async (ev) => {
       if (error) throw error;
       if (semFim) {
         const r = await sb.from("series").insert({ grupo: linhas[0].grupo, casa_id: estado.casa.id, passo: "mes", sem_fim: true, gerado_ate: linhas[linhas.length - 1].data });
-        if (r.error) throw r.error;
+        if (r.error) {
+          try { await apagarIds(linhas.map((x) => x.id)); } catch (e) {
+            await carregar();
+            throw new Error("Os lançamentos foram criados, mas a repetição automática não. Apague essa conta fixa e crie de novo.");
+          }
+          throw r.error;
+        }
       }
       vibrar(12);
       const ids = linhas.map((x) => x.id);
       const grupoNovo = semFim ? linhas[0].grupo : null;
       avisar(semFim ? "Conta fixa criada, sem data para acabar." : linhas.length > 1 ? `${linhas.length} lançamentos criados.` : "Lançado.", async () => {
-        if (grupoNovo) await sb.from("series").delete().eq("grupo", grupoNovo);
+        if (grupoNovo) { const r = await sb.from("series").delete().eq("grupo", grupoNovo); if (r.error) throw r.error; }
         await apagarIds(ids);
       });
       estado.mes = data.slice(0, 7);
@@ -1200,13 +1261,16 @@ $("lanc-apagar-serie").onclick = async () => {
     const r = await sb.from("series").update({ sem_fim: false }).eq("grupo", l.grupo);
     if (r.error) return avisar(msgErro(r.error));
   }
-  const { error } = await sb.from("lancamentos").delete().eq("grupo", l.grupo).gte("data", l.data);
-  if (error) return avisar(msgErro(error));
+  const { data: apagados, error } = await sb.from("lancamentos").delete().eq("grupo", l.grupo).gte("data", l.data).select();
+  if (error) {
+    if (serieAntes?.sem_fim) await sb.from("series").update({ sem_fim: true }).eq("grupo", l.grupo);
+    return avisar(msgErro(error));
+  }
   fecharPaineis();
   await carregar();
-  avisar(`${antes.length} apagados.`, async () => {
-    await regravar(antes);
-    if (serieAntes?.sem_fim) await sb.from("series").update({ sem_fim: true }).eq("grupo", l.grupo);
+  avisar(`${apagados.length} apagados.`, async () => {
+    await regravar(apagados);
+    if (serieAntes?.sem_fim) { const r = await sb.from("series").update({ sem_fim: true }).eq("grupo", l.grupo); if (r.error) throw r.error; }
   });
 };
 
@@ -1401,7 +1465,7 @@ function saldoCaixinha(c) {
   }
   const temReal = c.saldo_real != null;
   const atual = temReal ? Number(c.saldo_real) + depoisDoReal : guardado;
-  return { guardado: r2(guardado), atual: r2(Math.max(0, atual)), rendeu: temReal ? r2(atual - guardado) : 0, previsto: r2(previsto) };
+  return { guardado: r2(guardado), atual: r2(atual), rendeu: temReal ? r2(atual - guardado) : 0, previsto: r2(previsto) };
 }
 function totalGuardado() { return r2(caixinhasAtivas().reduce((s, c) => s + saldoCaixinha(c).atual, 0)); }
 
@@ -1599,12 +1663,11 @@ async function ajustarDeposito(c, mensal, dia) {
     pago: false, recorrente: true, parcela: null, parcelas: null, grupo, caixinha_id: c.id,
     ...(estado.temCategoria ? { categoria: "outros" } : {}),
   }));
+  if (!estado.seriesDb) throw new Error("Não consegui confirmar as contas fixas. Atualize a tela e tente de novo.");
   const { error } = await sb.from("lancamentos").insert(linhas);
   if (error) throw error;
-  if (estado.seriesDb) {
-    const r = await sb.from("series").insert({ grupo, casa_id: estado.casa.id, passo: "mes", sem_fim: true, gerado_ate: linhas[11].data });
-    if (r.error) throw r.error;
-  }
+  const r = await sb.from("series").insert({ grupo, casa_id: estado.casa.id, passo: "mes", sem_fim: true, gerado_ate: linhas[11].data });
+  if (r.error) { await apagarIds(linhas.map((l) => l.id)).catch(() => {}); throw r.error; }
 }
 
 $("painel-caixa").addEventListener("submit", async (ev) => {
@@ -1642,7 +1705,8 @@ $("painel-caixa").addEventListener("submit", async (ev) => {
     avisar(c ? "Caixinha atualizada." : `Caixinha "${nome}" criada.`);
     abrirCaixinhas();
   } catch (e) {
-    erro(msgErro(e));
+    await carregar();
+    erro(`${msgErro(e)} Confira os depósitos da caixinha antes de salvar de novo.`);
   } finally {
     btn.disabled = false;
   }
@@ -1659,15 +1723,18 @@ $("caixa-apagar").onclick = async () => {
     temMov ? "Arquivar" : "Apagar");
   if (!ok) return;
   try {
-    await ajustarDeposito(c, 0, 1);
-    const r = temMov
-      ? await sb.from("caixinhas").update({ arquivada: true, atualizado_em: new Date().toISOString() }).eq("id", c.id)
-      : await sb.from("caixinhas").delete().eq("id", c.id);
-    if (r.error) throw r.error;
+    if (temMov) {
+      const r = await sb.from("caixinhas").update({ arquivada: true, atualizado_em: new Date().toISOString() }).eq("id", c.id);
+      if (r.error) throw r.error;
+      await ajustarDeposito(c, 0, 1);
+    } else {
+      const r = await sb.from("caixinhas").delete().eq("id", c.id);
+      if (r.error) throw r.error;
+    }
     await carregar();
     avisar(temMov ? `"${c.nome}" arquivada.` : `"${c.nome}" apagada.`);
     abrirCaixinhas();
-  } catch (e) { avisar(msgErro(e)); }
+  } catch (e) { await carregar(); abrirCaixinhas(); avisar(msgErro(e)); }
 };
 
 // ---------- guardar e resgatar ----------
@@ -1675,7 +1742,7 @@ $("caixa-apagar").onclick = async () => {
 let movSel = null; // { c, tipo }
 function abrirMov(c, tipo) {
   if (!c) return;
-  movSel = { c, tipo };
+  movSel = { c, tipo, id: crypto.randomUUID() };
   const guardar = tipo === "despesa", p = planoCaixinha(c);
   $("mov-tit").textContent = guardar ? `Guardar em ${c.nome}` : `Resgatar de ${c.nome}`;
   $("mov-valor").value = guardar && p.mensal ? mostrarValor(p.mensal) : "";
@@ -1705,12 +1772,13 @@ $("painel-mov").addEventListener("submit", async (ev) => {
   btn.disabled = true;
   try {
     const linha = {
-      id: crypto.randomUUID(), casa_id: estado.casa.id, descricao: tipo === "despesa" ? `Guardar ${c.nome}` : `Resgate ${c.nome}`,
+      id: movSel.id, casa_id: estado.casa.id, descricao: tipo === "despesa" ? `Guardar ${c.nome}` : `Resgate ${c.nome}`,
       tipo, valor, data, pago: $("mov-feito").checked, recorrente: false, parcela: null, parcelas: null, grupo: null, caixinha_id: c.id,
       ...(estado.temCategoria ? { categoria: "outros" } : {}),
     };
-    const { error } = await sb.from("lancamentos").insert(linha);
+    const { error } = await sb.from("lancamentos").upsert(linha);
     if (error) throw error;
+    movSel.id = crypto.randomUUID();
     await carregar();
     vibrar(12);
     avisar(tipo === "despesa" ? `${brl.format(valor)} guardados em ${c.nome}.` : `${brl.format(valor)} resgatados de ${c.nome}.`, () => apagarIds([linha.id]));
@@ -2112,7 +2180,12 @@ async function mostrarLembretes() {
   }
   const reg = await navigator.serviceWorker.ready;
   const sub = await reg.pushManager.getSubscription();
-  chave.checked = !!sub && Notification.permission === "granted";
+  let noServidor = false;
+  if (sub) {
+    const { data } = await sb.from("push_inscricoes").select("endpoint").eq("endpoint", sub.endpoint);
+    noServidor = !!data?.length;
+  }
+  chave.checked = !!sub && noServidor && Notification.permission === "granted";
   chave.disabled = Notification.permission === "denied";
   $("lembretes-estado").textContent = chave.checked ? "Ligado" : "Desligado";
   if (Notification.permission === "denied") txt.textContent = "As notificações estão bloqueadas para este site. Libere nas configurações do navegador e volte aqui.";
@@ -2130,12 +2203,14 @@ $("lembretes-ligar").addEventListener("change", async (e) => {
         (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chaveVapid(cfg.vapidPublica) }));
       const j = sub.toJSON();
       const { error } = await sb.from("push_inscricoes").upsert({ endpoint: j.endpoint, casa_id: estado.casa.id, p256dh: j.keys.p256dh, auth: j.keys.auth });
+      if (error) await sub.unsubscribe().catch(() => {});
       if (error) throw (/push_inscricoes/.test(error.message) ? new Error("Falta atualizar o banco (05_lembretes.sql).") : error);
       avisar("Lembretes ligados neste celular.");
     } else {
       const sub = await reg.pushManager.getSubscription();
       if (sub) {
-        await sb.from("push_inscricoes").delete().eq("endpoint", sub.endpoint);
+        const r = await sb.from("push_inscricoes").delete().eq("endpoint", sub.endpoint);
+        if (r.error) throw new Error("Não consegui desligar no servidor: " + msgErro(r.error));
         await sub.unsubscribe();
       }
       avisar("Lembretes desligados neste celular.");
@@ -2244,15 +2319,16 @@ $("form-nova-senha").addEventListener("submit", async (ev) => {
 $("form-casa").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   $("casa-erro").textContent = "";
-  const { error } = await sb.rpc("entrar_na_casa", { p_codigo: $("casa-codigo").value });
+  const { data, error } = await sb.rpc("entrar_na_casa", { p_codigo: $("casa-codigo").value });
   if (error) { $("casa-erro").textContent = msgErro(error); return; }
+  if (!data) { $("casa-erro").textContent = "Código não encontrado. Confira as letras e tente de novo."; return; }
   abrirCasa();
 });
 
 // ---------- PWA ----------
 
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch((e) => console.warn("service worker não registrado", e)));
 }
 
 iniciar();
