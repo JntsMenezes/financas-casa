@@ -525,50 +525,56 @@ function pontosDoMes(mes) {
   return pts;
 }
 
-function curvaHtml(mes, pts, hj) {
-  const W = 340, H = 112, pad = 8;
+// Barras finas do saldo previsto, uma por dia; a de hoje acesa, as negativas descem em vermelho.
+function barrasDiaHtml(pts, hj) {
+  const W = 340, H = 86, n = pts.length, passo = W / n, larg = Math.max(3, passo * 0.56);
   const vals = pts.map((p) => p.saldo);
-  let min = Math.min(...vals), max = Math.max(...vals);
-  if (min > 0 && min < max * 0.2) min = 0;
-  if (max === min) { max += 1; min -= 1; }
-  const margem = (max - min) * 0.12;
-  min -= margem; max += margem;
-  const x = (i) => (pts.length === 1 ? W / 2 : (i / (pts.length - 1)) * W);
-  const y = (v) => pad + (1 - (v - min) / (max - min)) * (H - pad * 2);
-  const linha = (a, b) => pts.slice(a, b + 1).map((p, k) => `${k ? "L" : "M"}${x(a + k).toFixed(1)},${y(p.saldo).toFixed(1)}`).join("");
+  const max = Math.max(...vals, 0), min = Math.min(...vals, 0), faixa = max - min || 1;
+  const zero = (max / faixa) * H;
   const iHoje = pts.findIndex((p) => p.data === hj);
-  const zeroY = y(0);
-  const temNeg = Math.min(...vals) < 0;
-  const area = `${linha(0, pts.length - 1)}L${W},${H}L0,${H}Z`;
-  const idClip = "neg-" + mes;
-  const passado = iHoje >= 0 ? linha(0, iHoje) : (pts[0].data < hj ? linha(0, pts.length - 1) : "");
-  const futuro = iHoje >= 0 ? linha(iHoje, pts.length - 1) : (pts[0].data > hj ? linha(0, pts.length - 1) : "");
+  const barras = pts.map((p, i) => {
+    const alt = Math.max(2, (Math.abs(p.saldo) / faixa) * H);
+    const y = p.saldo >= 0 ? zero - alt : zero;
+    const cor = p.saldo < 0 ? "var(--vermelho)" : "var(--primaria)";
+    const op = i === iHoje ? 1 : p.data < hj ? 0.32 : 0.7;
+    return `<rect x="${(i * passo + (passo - larg) / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${larg.toFixed(1)}" height="${alt.toFixed(1)}" rx="${Math.min(2, larg / 2).toFixed(1)}" fill="${cor}" opacity="${op}"/>`;
+  }).join("");
+  const marca = iHoje >= 0 ? `<circle cx="${(iHoje * passo + passo / 2).toFixed(1)}" cy="${(pts[iHoje].saldo >= 0 ? zero - Math.max(2, (pts[iHoje].saldo / faixa) * H) : zero + Math.max(2, (-pts[iHoje].saldo / faixa) * H)) - (pts[iHoje].saldo >= 0 ? 7 : -7)}" r="3" fill="var(--primaria)"/>` : "";
   const menor = pts.reduce((a, p) => (p.saldo < a.saldo ? p : a), pts[0]);
-  const ult = pts[pts.length - 1];
-
-  return `<figure class="curva" aria-label="Saldo previsto dia a dia">
-    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Saldo previsto de ${dataCurta(pts[0].data)} a ${dataCurta(ult.data)}">
-      <defs>
-        <linearGradient id="grad-${mes}" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stop-color="var(--primaria)" stop-opacity=".16"/>
-          <stop offset="1" stop-color="var(--primaria)" stop-opacity="0"/>
-        </linearGradient>
-        <clipPath id="${idClip}"><rect x="0" y="${zeroY.toFixed(1)}" width="${W}" height="${Math.max(0, H - zeroY).toFixed(1)}"/></clipPath>
-      </defs>
-      <path d="${area}" fill="url(#grad-${mes})"/>
-      ${temNeg ? `<line x1="0" x2="${W}" y1="${zeroY.toFixed(1)}" y2="${zeroY.toFixed(1)}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="2 4" vector-effect="non-scaling-stroke" opacity=".6"/>` : ""}
-      ${passado ? `<path d="${passado}" fill="none" stroke="var(--primaria)" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>` : ""}
-      ${futuro ? `<path d="${futuro}" fill="none" stroke="var(--primaria)" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round" vector-effect="non-scaling-stroke" opacity=".85"/>` : ""}
-      ${temNeg ? `<g clip-path="url(#${idClip})"><path d="${linha(0, pts.length - 1)}" fill="none" stroke="var(--vermelho)" stroke-width="2.25" vector-effect="non-scaling-stroke"/></g>` : ""}
-      ${iHoje >= 0 ? `<line x1="${x(iHoje).toFixed(1)}" x2="${x(iHoje).toFixed(1)}" y1="0" y2="${H}" stroke="var(--primaria)" stroke-width="1" opacity=".25"/>
-        <circle cx="${x(iHoje).toFixed(1)}" cy="${y(pts[iHoje].saldo).toFixed(1)}" r="5" fill="var(--primaria)" stroke="var(--bg)" stroke-width="3"/>` : ""}
-    </svg>
-    <div class="rotulos num"><span>${dataCurta(pts[0].data)}</span>${iHoje >= 0 && x(iHoje) / W > 0.12 && x(iHoje) / W < 0.58 ?`<span class="rot-hoje" style="left:${((x(iHoje) / W) * 100).toFixed(1)}%">hoje</span>` : ""}<span>${dataCurta(ult.data)} · ${brl.format(ult.saldo)}</span></div>
-    <figcaption>${temNeg
-      ? `Fica negativo: o ponto mais baixo é <b class="num" style="color:var(--vermelho)">${brl.format(menor.saldo)}</b> em ${dataCurta(menor.data)}.`
-      : `Saldo previsto dia a dia, contando também o que ainda não tem check.`}</figcaption>
+  const frente = pts.filter((p) => p.data >= hj);
+  const menorFrente = frente.reduce((a, p) => (p.saldo < a.saldo ? p : a), frente[0]);
+  const ult = pts[n - 1];
+  const marcas = [0, 7, 14, 21].filter((i) => i < n - 3).map((i) => `<span>${pts[i].data.slice(8)}</span>`).join("") + `<span>${ult.data.slice(8)}</span>`;
+  return `<figure class="barras" style="margin-left:0;margin-right:0">
+    <div class="barras-cab"><span>Saldo previsto · dia a dia</span><span class="selo">${iHoje >= 0 ? `hoje ${hj.slice(8)}` : `${n} dias`}</span></div>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Saldo previsto de ${dataCurta(pts[0].data)} a ${dataCurta(ult.data)}, terminando em ${brl.format(ult.saldo)}">${barras}${marca}</svg>
+    <div class="eixo">${marcas}</div>
+    ${menor.saldo < 0 ? `<p>Fica negativo: o ponto mais baixo é <b class="num">${brl.format(menor.saldo)}</b> em ${dataCurta(menor.data)}.</p>`
+      : frente.length ? `<p>O ponto mais baixo daqui para frente é <b class="num" style="color:var(--ink)">${brl.format(menorFrente.saldo)}</b> em ${dataCurta(menorFrente.data)}.</p>` : ""}
   </figure>`;
 }
+
+// Quem é a pessoa 1 e a 2 da casa, para a cor de cada um.
+function ordemDe(uid) {
+  const ids = [...estado.membros.keys()];
+  const i = ids.indexOf(uid);
+  return i < 0 ? 0 : (i % 2) + 1;
+}
+
+function casalHtml() {
+  const ids = [...estado.membros.keys()].slice(0, 2);
+  if (!ids.length && estado.sessao) ids.push(estado.sessao.user.id);
+  const nomes = ids.map((u) => nomeDe(u));
+  const online = navigator.onLine;
+  const ultimo = estado.lancs.filter((l) => l.criado_por).reduce((a, l) => (!a || l.criado_em > a.criado_em ? l : a), null);
+  return `<div class="casal">
+    <span class="pares" aria-hidden="true">${ids.map((u, i) => `<span class="ini bg-q${i + 1}">${esc((nomeDe(u) || "?").charAt(0).toUpperCase())}</span>`).join("")}</span>
+    <span class="nomes">${esc(nomes.join(" e "))}</span>
+    <span class="selo ${online ? "" : "off"}">${online ? (ids.length > 1 ? "juntos, ao vivo" : "ao vivo") : "sem internet"}</span>
+  </div>${ultimo ? `<p class="ultimo"><i class="q${ordemDe(ultimo.criado_por)}"></i>${esc(nomeDe(ultimo.criado_por))} lançou por último: ${esc(ultimo.descricao)}, ${/00:00$/.test(quando(ultimo.criado_em)) ? dataCurta(iso(new Date(ultimo.criado_em))) : quando(ultimo.criado_em)}.</p>` : ""}`;
+}
+
+const nBrl = (v) => `<span class="n num ${v < 0 ? "neg" : ""}">${brl.format(v)}</span>`;
 
 function render() {
   const mes = estado.mes, hj = hoje(), mesAtual = hj.slice(0, 7);
@@ -583,18 +589,35 @@ function render() {
   const saidas = doMes.filter((l) => l.tipo === "despesa" && !ehCaixinha(l)).reduce((s, l) => s + Number(l.valor), 0);
   const pts = pontosDoMes(mes);
 
-  // Número principal: no mês atual, o que está na conta; nos outros, como o mês termina.
-  let principal, legenda;
+  // A home abre com uma frase: no mês atual, hoje e o fim do mês; nos outros, como o mês termina.
+  const dia = Number(fim.slice(8));
+  const aPagar = doMes.filter((l) => !l.pago && l.tipo === "despesa" && !ehCaixinha(l)).reduce((s, l) => s + Number(l.valor), 0);
+  const aReceber = doMes.filter((l) => !l.pago && l.tipo === "receita" && !ehCaixinha(l)).reduce((s, l) => s + Number(l.valor), 0);
+  const guardado = guardadoEm(doMes);
+  let titulo, apoio;
   if (mes === mesAtual) {
-    principal = naConta;
-    legenda = `na conta agora, só o que tem check<br>Previsto para ${dataCurta(fim)}: <b class="num">${brl.format(fimMes)}</b>`;
-  } else if (mes > mesAtual) {
-    principal = fimMes;
-    legenda = `previsto para ${dataCurta(fim)}<br>Na conta agora: <b class="num">${brl.format(naConta)}</b>`;
+    titulo = `Hoje, ${nBrl(naConta)} na conta.<span class="l2">Dia ${dia}, ${nBrl(fimMes)}.</span>`;
+    const partes = [aPagar && `faltam pagar <b class="num">${brl.format(aPagar)}</b>`, aReceber && `entrar <b class="num">${brl.format(aReceber)}</b>`].filter(Boolean);
+    apoio = (partes.length ? `Até lá ${partes.join(" e ")}` : "Tudo do mês já tem check") +
+      (guardado > 0 ? `, e vocês guardam <b class="num">${brl.format(guardado)}</b>.` : ".");
   } else {
-    principal = fimMes;
-    legenda = `saldo no fim de ${MESES[Number(mes.slice(5)) - 1]}, contando tudo o que foi lançado`;
+    titulo = `${nomeDoMes(mes).charAt(0).toUpperCase() + nomeDoMes(mes).slice(1)} ${mes > mesAtual ? "fecha" : "fechou"} com ${nBrl(fimMes)}.`;
+    apoio = (mes > mesAtual ? `Hoje vocês têm <b class="num">${brl.format(naConta)}</b> na conta. ` : "") + `${mes > mesAtual ? "Entram" : "Entraram"} <b class="num">${brl.format(entradas)}</b> e ${mes > mesAtual ? "saem" : "saíram"} <b class="num">${brl.format(saidas)}</b>` +
+      (guardado > 0 ? `; <b class="num">${brl.format(guardado)}</b> ${mes > mesAtual ? "vão" : "foram"} para as caixinhas.` : ".");
   }
+  const base = Math.max(entradas, saidas + Math.max(0, guardado), 1);
+  const pG = Math.min(100, (saidas / base) * 100), pGu = Math.min(100 - pG, (Math.max(0, guardado) / base) * 100);
+  const passou = saidas + Math.max(0, guardado) > entradas && entradas > 0 ? ((saidas + guardado - entradas) / base) * 100 : 0;
+  const fita = `<div class="fita">
+      <div class="fita-trilho" role="img" aria-label="Do que entra no mês, ${Math.round((saidas / Math.max(entradas, 1)) * 100)}% vai para gastos e ${Math.round((Math.max(0, guardado) / Math.max(entradas, 1)) * 100)}% é guardado">
+        <span class="f-gasto" style="width:${pG.toFixed(1)}%"></span><span class="f-guardado" style="left:${pG.toFixed(1)}%;width:${pGu.toFixed(1)}%"></span>${passou ? `<span class="f-passou" style="width:${passou.toFixed(1)}%"></span>` : ""}
+      </div>
+      <div class="fita-rot">
+        <div><span>Entra</span><b class="num">${brl.format(entradas)}</b></div>
+        <div><span><i style="background:var(--muted)"></i>Gastos</span><b class="num">${brl.format(saidas)}</b></div>
+        <div><span><i style="background:var(--verde)"></i>Guardado</span><b class="num">${brl.format(Math.max(0, guardado))}</b></div>
+      </div>
+    </div>`;
 
   // Avisos, cada um leva ao que precisa ser feito.
   const avisos = [];
@@ -642,21 +665,18 @@ function render() {
 
   $("conteudo").innerHTML = `<div class="grade">
     <section class="col-resumo">
-      <div class="saldo">
-        ${valorHtml(principal)}
-        <div class="saldo-legenda">${legenda}</div>
-      </div>
-      ${curvaHtml(mes, pts, hj)}
-      <div class="fluxo">
-        <div><span>Entradas do mês</span><b class="num" style="color:var(--verde)">${brl.format(entradas)}</b></div>
-        <div><span>Saídas do mês</span><b class="num" style="color:var(--vermelho)">${brl.format(saidas)}</b></div>
-      </div>
-      ${doMes.length ? `<button class="linha-resumo" data-abrir-resumo>${svg('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>')}<span>Para onde foi o dinheiro em ${nomeDoMes(mes)}</span>${IC.ir}</button>` : ""}
-      ${estado.caixinhas ? `<button class="linha-resumo" data-abrir-caixinhas>${caixaIcone("cofre")}<span>${estado.caixinhas.some((c) => !c.arquivada)
-        ? `Caixinhas · <b class="num">${brl.format(totalGuardado())}</b> guardados`
-        : "Começar a guardar dinheiro"}</span>${IC.ir}</button>` : ""}
-      ${estado.lancs.length ? `<button class="linha-resumo" data-abrir-ano>${svg('<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>')}<span>Visão de ${mes.slice(0, 4)} e como estamos</span>${IC.ir}</button>` : ""}
+      ${casalHtml()}
+      <div class="frase"><h2>${titulo}</h2><p>${apoio}</p></div>
+      ${fita}
+      ${barrasDiaHtml(pts, hj)}
       ${avisos.length ? `<div class="avisos">${avisos.join("")}</div>` : ""}
+      <nav class="atalhos" aria-label="Mais">
+      ${doMes.length ? `<button class="linha-resumo" data-abrir-resumo>${svg('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>')}<span>Para onde foi<small>${MESES[Number(mes.slice(5)) - 1]}/${mes.slice(2, 4)}</small></span>${IC.ir}</button>` : ""}
+      ${estado.caixinhas ? `<button class="linha-resumo" data-abrir-caixinhas>${caixaIcone("cofre")}<span>${estado.caixinhas.some((c) => !c.arquivada)
+        ? `Caixinhas<small class="num">${brl.format(totalGuardado())}</small>`
+        : "Guardar dinheiro<small>caixinhas</small>"}</span>${IC.ir}</button>` : ""}
+      ${estado.lancs.length ? `<button class="linha-resumo" data-abrir-ano>${svg('<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>')}<span>Como estamos<small>${mes.slice(0, 4)}</small></span>${IC.ir}</button>` : ""}
+      </nav>
     </section>
     <section class="col-extrato">
       <nav class="filtros" aria-label="Filtro">${chipCat}${chip("todos", "Todos")}${chip("pendentes", "Sem check")}${chip("despesas", "Despesas")}${chip("receitas", "Receitas")}</nav>
@@ -732,7 +752,7 @@ function itemHtml(l, hj, op = {}) {
   if (l.caixinha_id) tags.push(`<span class="tag guardar">${l.tipo === "despesa" ? "guardar" : "resgate"}</span>`);
   else if (l.recorrente) tags.push(`<span class="tag">fixa</span>`);
   if (atrasado) tags.push(`<span class="tag atraso">atrasado</span>`);
-  if (l.criado_por) tags.push(`<span class="tag">${esc(nomeDe(l.criado_por))}</span>`);
+  if (l.criado_por) tags.push(`<span class="tag quem q${ordemDe(l.criado_por)}">${esc(nomeDe(l.criado_por))}</span>`);
   if (estado.pendentes.has(l.id)) tags.push(`<span class="tag atraso">aguardando internet</span>`);
   const feito = l.tipo === "receita" ? "recebido" : "pago";
   return `<div class="item ${baixado ? "baixado" : ""}">
@@ -2043,7 +2063,7 @@ function aplicarTema(t) {
   try { if (t === "auto") localStorage.removeItem("tema"); else localStorage.setItem("tema", t); } catch (e) {}
   for (const b of $("seg-tema").children) b.classList.toggle("ativo", b.dataset.tema === t);
   const escuro = t === "dark" || (t === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
-  document.querySelector('meta[name="theme-color"]').content = escuro ? "#141413" : "#f5f4ef";
+  document.querySelector('meta[name="theme-color"]').content = escuro ? "#0a0b0f" : "#f3f7f9";
 }
 $("seg-tema").onclick = (e) => { const b = e.target.closest("[data-tema]"); if (b) aplicarTema(b.dataset.tema); };
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => aplicarTema(temaAtual()));

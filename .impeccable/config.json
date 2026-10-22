@@ -11,6 +11,24 @@
         ],
         "createdAt": "2026-10-21T13:16:14.986Z",
         "reason": "user confirmed: 'tema ta otimo' (21/10/2026), asked only to add dark option"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "index.html"
+        ],
+        "createdAt": "2026-10-22T00:36:53.418Z",
+        "reason": "mundo fixado pelo usuário: mesmo brilho do botão principal do portfólio jntsmenezes.github.io"
+      },
+      {
+        "rule": "codex-grid-background",
+        "value": "*",
+        "files": [
+          "index.html"
+        ],
+        "createdAt": "2026-10-22T00:36:54.538Z",
+        "reason": "mundo fixado pelo usuário: grade do topo do portfólio jntsmenezes.github.io"
       }
     ]
   }

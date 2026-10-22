@@ -3,3 +3,7 @@
 importar*.sql
 .impeccable/live/
 .impeccable/critique/
+
+# Notas locais (têm dados da família) e área de trabalho do design
+PRODUCT.md
+.impeccable/

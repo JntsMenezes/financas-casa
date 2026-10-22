@@ -1,8 +1,8 @@
 // Guarda a casca do app para abrir rápido e sem internet. Os dados vêm sempre do Supabase.
-const CACHE = "financas-v11";
+const CACHE = "financas-v12";
 const CASCA = [
   "./", "index.html", "app.js", "config.js", "manifest.webmanifest",
-  "icons/icon-192.png", "icons/icon-512.png", "fonts/inter-latin-wght.woff2",
+  "icons/icon-192.png", "icons/icon-512.png", "fonts/manrope-latin-wght.woff2", "fonts/jetbrainsmono-latin-wght.woff2",
   "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js",
 ];
 
