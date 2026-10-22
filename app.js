@@ -439,19 +439,33 @@ function definirLancs(lista) {
 }
 
 let recarregarTimer;
+// Mudanças da outra pessoa chegam na hora; a presença diz quem está com o app aberto agora.
 function assinarMudancas() {
   if (estado.canal) sb.removeChannel(estado.canal);
-  estado.canal = sb.channel("lanc-" + estado.casa.id)
+  const eu = estado.sessao?.user?.id || "eu";
+  const canal = sb.channel("lanc-" + estado.casa.id, { config: { presence: { key: eu } } });
+  estado.canal = canal
     .on("postgres_changes", { event: "*", schema: "public", table: "lancamentos", filter: `casa_id=eq.${estado.casa.id}` }, () => {
       clearTimeout(recarregarTimer);
       recarregarTimer = setTimeout(carregar, 400);
     })
-    .subscribe((st) => {
+    .on("presence", { event: "sync" }, () => {
+      estado.abertos = Object.keys(canal.presenceState()).length;
+      atualizarSelo();
+    })
+    .subscribe(async (st) => {
       const antes = estado.aoVivo;
       estado.aoVivo = st === "SUBSCRIBED";
-      if (antes !== estado.aoVivo) render();
+      if (estado.aoVivo && document.visibilityState === "visible") await canal.track({ desde: Date.now() }).catch(() => {});
+      if (antes !== estado.aoVivo) atualizarSelo();
     });
 }
+// App em segundo plano sai da contagem de quem está junto.
+document.addEventListener("visibilitychange", () => {
+  if (!estado.canal || !estado.aoVivo) return;
+  if (document.visibilityState === "visible") estado.canal.track({ desde: Date.now() }).catch(() => {});
+  else estado.canal.untrack().catch(() => {});
+});
 
 document.addEventListener("visibilitychange", async () => {
   if (document.visibilityState !== "visible" || !estado.casa) return;
@@ -723,6 +737,18 @@ function haQuanto(ts) {
   return dataCurta(dia);
 }
 
+// "juntos, ao vivo" só com os dois de app aberto; "on" quando é só você.
+function seloHtml(pessoas = estado.membros.size) {
+  const conectado = navigator.onLine && estado.aoVivo;
+  const txt = !navigator.onLine ? "sem internet" : !estado.aoVivo ? "conectando"
+    : pessoas < 2 ? "esperando a outra pessoa" : (estado.abertos || 1) >= 2 ? "juntos, ao vivo" : "on";
+  return `<span class="selo ${conectado ? "" : "off"} ${txt === "juntos, ao vivo" ? "juntos" : ""}" aria-live="polite">${txt}</span>`;
+}
+function atualizarSelo() {
+  const s = document.querySelector(".casal .selo");
+  if (s) s.outerHTML = seloHtml();
+}
+
 // Quem é a pessoa 1 e a 2 da casa, para a cor de cada um.
 function ordemDe(uid) {
   const ids = [...estado.membros.keys()];
@@ -734,12 +760,12 @@ function casalHtml() {
   const ids = [...estado.membros.keys()].slice(0, 2);
   if (!ids.length && estado.sessao) ids.push(estado.sessao.user.id);
   const nomes = ids.map((u) => nomeDe(u));
-  const online = navigator.onLine && estado.aoVivo;
+
   const acao = ultimaAcao();
   return `<div class="casal">
     <span class="pares" aria-hidden="true">${ids.map((u, i) => `<span class="ini bg-q${i + 1}">${esc((nomeDe(u) || "?").charAt(0).toUpperCase())}</span>`).join("")}</span>
     <span class="nomes">${esc(nomes.join(" e "))}</span>
-    <span class="selo ${online ? "" : "off"}">${online ? (ids.length > 1 ? "juntos, ao vivo" : "esperando a outra pessoa") : navigator.onLine ? "conectando" : "sem internet"}</span>
+    ${seloHtml(ids.length)}
   </div>${acao ? `<p class="ultimo"><i class="q${ordemDe(acao.uid)}"></i><span><b>${esc(nomeDe(acao.uid))}</b> ${acao.txt}, ${haQuanto(acao.quando)}.</span></p>` : ""}`;
 }
 
