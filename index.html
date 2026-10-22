@@ -215,8 +215,26 @@
   .recentes .chip { padding: 0 12px; font-size: 13.5px; font-weight: 500; }
   .lanc-rodape { position: sticky; bottom: calc(-18px - env(safe-area-inset-bottom)); z-index: 2; margin: 8px -18px 0; padding: 8px 18px calc(18px + env(safe-area-inset-bottom)); background: var(--card); border-top: 1px solid var(--line); }
   .lanc-rodape .erro:empty { min-height: 0; margin: 0; }
-  .frase .conferir { padding: 6px 0; min-height: 40px; font-weight: 600; }
+  .frase .conferir { padding: 6px 0; min-height: 44px; font-weight: 600; }
   .secao-tit.neutro { color: var(--muted); }
+  .lista-sub { padding: 10px 14px 4px; font-size: 12.5px; font-weight: 700; color: var(--muted); border-top: 1px solid var(--line); }
+  .lista-sub:first-child { border-top: 0; }
+  .lista-sub.atencao { color: var(--aviso-atencao); }
+  .lista-sub + .item { border-top: 0; }
+  .hoje-cab .link { padding: 0; min-height: 44px; font-size: 13.5px; font-weight: 600; }
+  .hoje-cab { align-items: center; }
+  .bloco-hoje .nada-hoje { padding-top: 8px; }
+  .conferir-sug:empty { display: none; }
+  .conferir-sug { margin: 0 0 12px; }
+  .conferir-sug .nota { margin: 10px 12px 2px; }
+  .conferir-sug b.num { color: var(--primaria); }
+  .falta-pouco { margin-top: 16px; padding: 12px; border: 1px solid var(--line); border-radius: var(--raio); background: var(--card); }
+  .falta-cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 0 2px 6px; }
+  .falta-cab .link { padding: 0; min-height: 44px; font-size: 13.5px; }
+  .falta-pouco .passo { margin-bottom: 6px; padding: 10px 12px; border-color: transparent; background: var(--bg); }
+  .passo.feito { opacity: .6; }
+  .passo.feito .passo-n { background: var(--verde-bg); color: var(--verde); }
+  .passo-n .ic { width: 15px; height: 15px; stroke-width: 2.6; }
   .boas-vindas { padding: 22px 2px 8px; }
   .boas-vindas h2 { margin: 0; font-size: clamp(31px, 9vw, 40px); font-weight: 800; letter-spacing: -.035em; line-height: 1.08; }
   .boas-vindas > p { margin: 12px 0 18px; color: var(--muted); font-size: 15.5px; line-height: 1.5; max-width: 46ch; }
@@ -864,6 +882,7 @@
   <div class="painel-cab"><h2>Conferir com o banco</h2><button class="icone" type="button" data-fechar-painel aria-label="Fechar"><svg class="ic" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button></div>
   <p class="nota" style="margin-top:-6px">Somando tudo o que tem check, o app mostra <b class="num" id="conferir-app">R$ 0,00</b> na conta. Se o banco mostra outro valor, digite aqui e o app ajusta.</p>
   <label class="campo valor-grande"><span>Saldo no banco agora (R$)</span><input id="conferir-valor" class="num" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>
+  <div id="conferir-sugestoes" class="lista lista-plana conferir-sug"></div>
   <p class="previa" id="conferir-previa" aria-live="polite"></p>
   <div class="erro" id="conferir-erro" role="alert"></div>
   <button class="btn" type="submit" id="conferir-salvar">Ajustar</button>

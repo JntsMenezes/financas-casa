@@ -669,23 +669,26 @@ function aperto(pts, hj, entradas) {
 function hojeHtml(hj) {
   const atrasados = estado.lancs.filter((l) => !l.pago && l.data < hj);
   const deHoje = estado.lancs.filter((l) => l.data === hj);
-  const falta = deHoje.filter((l) => !l.pago).length + atrasados.length;
   const pagarAtras = atrasados.filter((l) => l.tipo === "despesa"), receberAtras = atrasados.filter((l) => l.tipo === "receita");
-  const cab = `<div class="hoje-cab" id="hoje"><span>Hoje · ${nomeDia.format(deIso(hj))}</span></div>`;
-  const naConta = r2(estado.lancs.reduce((s, l) => (l.pago ? s + sinal(l) : s), 0));
-  const comTudo = saldoAte(hj);
-  const seTudo = Math.abs(comTudo - naConta) >= 0.01
-    ? `<p class="se-tudo">${atrasados.some((l) => l.tipo === "receita") ? "Quando o que falta receber entrar e tudo de hoje tiver check" : `Com check em tudo de hoje${atrasados.length ? " e nos atrasados" : ""}`}, a conta fica em <b class="num">${brl.format(comTudo)}</b>.</p>` : "";
+  const semCheckHoje = deHoje.filter((l) => !l.pago);
+  const titulo = atrasados.length ? "Hoje e pendentes" : "Hoje";
+  const cab = `<div class="hoje-cab" id="hoje"><span>${titulo} · ${nomeDia.format(deIso(hj))}</span>${semCheckHoje.length > 1 ? `<button class="link" type="button" data-check-hoje>Check em tudo de hoje</button>` : ""}</div>`;
   if (!atrasados.length && !deHoje.length) {
     return `<section class="bloco-hoje">${cab}<div class="em-dia"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Nada para hoje. Está tudo em dia.</span></div></section>`;
   }
-  return `<section class="bloco-hoje" aria-label="Hoje e atrasados">${cab}
-    ${pagarAtras.length ? `<div class="secao-tit" id="atrasados">${pagarAtras.length === 1 ? "Passou da data sem check" : `${pagarAtras.length} passaram da data sem check`}</div>
-      <div class="lista">${pagarAtras.map((l) => itemHtml(l, hj, { data: true })).join("")}</div>` : ""}
-    ${receberAtras.length ? `<div class="secao-tit neutro" ${pagarAtras.length ? 'style="margin-top:14px"' : 'id="atrasados"'}>Ainda não entrou</div>
-      <div class="lista">${receberAtras.map((l) => itemHtml(l, hj, { data: true })).join("")}</div>` : ""}
-    ${deHoje.length ? `<div class="lista" ${atrasados.length ? 'style="margin-top:8px"' : ""}>${deHoje.map((l) => itemHtml(l, hj, { saldo: true, depois: l.pago ? null : r2(naConta + sinal(l)) })).join("")}</div>` : '<div class="nada-hoje">Nada lançado para hoje.</div>'}
-    ${!falta ? '<div class="em-dia"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>O de hoje já tem check.</span></div>' : seTudo}
+  // "depois" só no último sem check de hoje: é como a conta fica quando tudo de hoje tiver check.
+  const naConta = r2(estado.lancs.reduce((s, l) => (l.pago ? s + sinal(l) : s), 0));
+  const ultimo = semCheckHoje[semCheckHoje.length - 1];
+  const fimHoje = r2(naConta + semCheckHoje.reduce((s, l) => s + sinal(l), 0));
+  const sub = (t, cls = "") => `<div class="lista-sub ${cls}">${t}</div>`;
+  const linhas = [
+    pagarAtras.length ? sub(pagarAtras.length === 1 ? "Passou da data sem check" : `${pagarAtras.length} passaram da data sem check`, "atencao") + pagarAtras.map((l) => itemHtml(l, hj, { data: true, semEstado: true })).join("") : "",
+    receberAtras.length ? sub("Ainda não entrou") + receberAtras.map((l) => itemHtml(l, hj, { data: true, semEstado: true })).join("") : "",
+    deHoje.length ? (atrasados.length ? sub("De hoje") : "") + deHoje.map((l) => itemHtml(l, hj, { saldo: l === ultimo, depois: l === ultimo ? fimHoje : undefined })).join("") : "",
+  ].join("");
+  return `<section class="bloco-hoje" aria-label="${titulo}">${cab}
+    <div class="lista">${linhas}</div>
+    ${!deHoje.length ? '<div class="nada-hoje">Nada lançado para hoje.</div>' : !semCheckHoje.length ? '<div class="nada-hoje">O de hoje já tem check.</div>' : ""}
   </section>`;
 }
 
@@ -736,7 +739,7 @@ function casalHtml() {
   return `<div class="casal">
     <span class="pares" aria-hidden="true">${ids.map((u, i) => `<span class="ini bg-q${i + 1}">${esc((nomeDe(u) || "?").charAt(0).toUpperCase())}</span>`).join("")}</span>
     <span class="nomes">${esc(nomes.join(" e "))}</span>
-    <span class="selo ${online ? "" : "off"}">${online ? (ids.length > 1 ? "juntos, ao vivo" : "ao vivo") : navigator.onLine ? "conectando" : "sem internet"}</span>
+    <span class="selo ${online ? "" : "off"}">${online ? (ids.length > 1 ? "juntos, ao vivo" : "esperando a outra pessoa") : navigator.onLine ? "conectando" : "sem internet"}</span>
   </div>${acao ? `<p class="ultimo"><i class="q${ordemDe(acao.uid)}"></i><span><b>${esc(nomeDe(acao.uid))}</b> ${acao.txt}, ${haQuanto(acao.quando)}.</span></p>` : ""}`;
 }
 
@@ -838,6 +841,7 @@ function render() {
   $("conteudo").innerHTML = `<div class="grade">
     <section class="col-resumo">
       ${casalHtml()}
+      ${faltaPoucoHtml()}
       <div class="frase"><h2>${titulo}</h2><p>${apoio}</p>${mes === mesAtual ? '<button class="link conferir" type="button" data-conferir>Conferir com o banco</button>' : ""}</div>
       ${blocoHoje}
       ${avisos.length ? `<div class="avisos">${avisos.join("")}</div>` : ""}
@@ -934,8 +938,9 @@ function itemHtml(l, hj, op = {}) {
   if (l.parcelas) tags.push(`<span class="tag num">${l.parcela}/${l.parcelas}</span>`);
   if (l.caixinha_id) tags.push(`<span class="tag guardar">${l.tipo === "despesa" ? "guardar" : "resgate"}</span>`);
   else if (l.recorrente) tags.push(`<span class="tag">fixa</span>`);
-  if (atrasado) tags.push(`<span class="tag atraso">atrasado</span>`);
-  else if (passou) tags.push(`<span class="tag">não entrou</span>`);
+  // No bloco de hoje o subtítulo já diz o estado; a etiqueta só repetiria.
+  if (atrasado && !op.semEstado) tags.push(`<span class="tag atraso">atrasado</span>`);
+  else if (passou && !op.semEstado) tags.push(`<span class="tag">não entrou</span>`);
   if (l.criado_por) tags.push(`<span class="tag quem q${ordemDe(l.criado_por)}" title="Lançado por ${esc(nomeDe(l.criado_por))}">${esc(nomeDe(l.criado_por))}</span>`);
   if (Number(l.valor) === 0) tags.push(`<span class="tag definir">valor a definir</span>`);
   if (estado.pendentes.has(l.id)) tags.push(`<span class="tag espera">aguardando internet</span>`);
@@ -971,6 +976,7 @@ $("conteudo").addEventListener("click", async (ev) => {
   }
   if (t("[data-abrir-caixinhas]")) { abrirCaixinhas(); return; }
   if (t("[data-conferir]")) { abrirConferir(); return; }
+  if (t("[data-check-hoje]")) { await checkEmTudoDeHoje(); return; }
   if (t("[data-abrir-ano]")) { abrirAno(Number(estado.mes.slice(0, 4))); return; }
   if (t("[data-enviar-fila]")) {
     if (!navigator.onLine) { avisar("Ainda sem internet. Assim que conectar, o app envia sozinho."); return; }
@@ -2169,6 +2175,20 @@ function analiseAno(ano, meses, tot, cats) {
   return out;
 }
 
+// Check em tudo o que é de hoje de uma vez, com desfazer.
+async function checkEmTudoDeHoje() {
+  const ids = estado.lancs.filter((l) => l.data === hoje() && !l.pago).map((l) => l.id);
+  if (!ids.length) return;
+  const { data, error } = await sb.from("lancamentos").update({ pago: true }).in("id", ids).select("id");
+  if (error) { avisar(msgErro(error)); return; }
+  vibrar(12);
+  await carregar();
+  avisar(`${data.length === 1 ? "1 lançamento" : `${data.length} lançamentos`} com check.`, async () => {
+    const r = await sb.from("lancamentos").update({ pago: false }).in("id", data.map((x) => x.id));
+    if (r.error) throw r.error;
+  });
+}
+
 // ---------- conferir com o banco ----------
 
 // Valor que pode ser negativo (conta no cheque especial): "-150,30".
@@ -2183,15 +2203,54 @@ function abrirConferir() {
   $("conferir-app").textContent = brl.format(naContaAgora());
   $("conferir-valor").value = "";
   $("conferir-previa").textContent = "";
+  $("conferir-sugestoes").innerHTML = "";
+  $("conferir-salvar").classList.remove("sec");
   $("conferir-erro").textContent = "";
   abrirPainel($("painel-conferir"));
   setTimeout(() => $("conferir-valor").focus(), 300);
 }
-$("conferir-valor").addEventListener("input", () => {
+// Diferença com o banco muitas vezes é um check esquecido: procura sem check dos últimos 15 dias
+// (um lançamento ou dois somados) que explicam a diferença.
+function checksQueExplicam(dif) {
+  const hj = hoje(), desde = somarDias(hj, -15);
+  const cand = estado.lancs.filter((l) => !l.pago && l.data >= desde && l.data <= hj && Number(l.valor) > 0);
+  const um = cand.filter((l) => Math.abs(sinal(l) - dif) < 0.01).map((l) => [l]);
+  if (um.length) return um.slice(0, 3);
+  const dois = [];
+  for (let a = 0; a < cand.length && dois.length < 3; a++)
+    for (let b = a + 1; b < cand.length && dois.length < 3; b++)
+      if (Math.abs(sinal(cand[a]) + sinal(cand[b]) - dif) < 0.01) dois.push([cand[a], cand[b]]);
+  return dois;
+}
+function previaConferir() {
   const v = lerSaldo($("conferir-valor").value), dif = r2(v - naContaAgora());
+  const caixa = $("conferir-sugestoes");
+  const sugestoes = Number.isFinite(v) && Math.abs(dif) >= 0.01 ? checksQueExplicam(dif) : [];
+  caixa.innerHTML = sugestoes.length
+    ? `<p class="nota">Pode ser ${sugestoes.length === 1 ? "isto" : "um destes"}, sem check:</p>` + sugestoes.map((g) => `<button class="linha-simples" type="button" data-conferir-check="${g.map((l) => l.id).join(",")}">
+        <span class="desc">${g.map((l) => esc(l.descricao)).join(" + ")}</span><span class="num quando">${g.map((l) => dataCurta(l.data)).join(", ")}</span><b class="num">Dar check</b></button>`).join("")
+    : "";
+  $("conferir-salvar").classList.toggle("sec", sugestoes.length > 0);
   $("conferir-previa").textContent = !Number.isFinite(v) ? ""
     : Math.abs(dif) < 0.01 ? "Bate com o app. Nada a ajustar."
+    : sugestoes.length ? `Diferença de ${brl.format(Math.abs(dif))}. Se não for isso, o ajuste entra como ${dif > 0 ? "entrada" : "saída"} com check, hoje.`
     : `Diferença de ${brl.format(Math.abs(dif))}: entra um ajuste de ${dif > 0 ? "entrada" : "saída"} com check, hoje, para a conta bater.`;
+}
+$("conferir-valor").addEventListener("input", previaConferir);
+$("conferir-sugestoes").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-conferir-check]");
+  if (!b) return;
+  const ids = b.dataset.conferirCheck.split(",");
+  b.disabled = true;
+  const { error } = await sb.from("lancamentos").update({ pago: true }).in("id", ids);
+  if (error) { b.disabled = false; $("conferir-erro").textContent = msgErro(error); return; }
+  await carregar();
+  $("conferir-app").textContent = brl.format(naContaAgora());
+  previaConferir();
+  avisar(ids.length === 1 ? "Check dado. Era isso que faltava?" : "Checks dados. Era isso que faltava?", async () => {
+    const r = await sb.from("lancamentos").update({ pago: false }).in("id", ids);
+    if (r.error) throw r.error;
+  });
 });
 $("painel-conferir").addEventListener("submit", async (ev) => {
   ev.preventDefault();
@@ -2221,20 +2280,51 @@ $("painel-conferir").addEventListener("submit", async (ev) => {
 
 // ---------- primeira vez ----------
 
+// O que já foi feito para a casa começar, lido dos próprios dados.
+function progressoInicio() {
+  const L = estado.lancs;
+  return {
+    saldo: L.length > 0,
+    casal: estado.membros.size >= 2,
+    receita: L.some((l) => l.tipo === "receita" && l.recorrente),
+    fixas: L.some((l) => l.tipo === "despesa" && l.recorrente),
+  };
+}
+const CHAVE_INICIO = "fin-inicio-dispensado-v1";
+function inicioDispensado() { try { return localStorage.getItem(CHAVE_INICIO) === estado.casa?.id; } catch (e) { return false; } }
+
+function passosHtml(p) {
+  const passo = (n, feito, corpo, attrs) => `<${feito ? "div" : "button type=\"button\""} class="passo ${feito ? "feito" : ""}" ${feito ? "" : attrs}>
+    <span class="passo-n">${feito ? '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>' : n}</span><div>${corpo}</div>${feito ? "" : IC.ir}</${feito ? "div" : "button"}>`;
+  return [
+    passo(2, p.casal, "<b>Chame quem divide a casa</b><small>Os dois veem e lançam juntos, cada um no seu celular.</small>", 'data-bv="convidar"'),
+    passo(3, p.receita, "<b>O que entra todo mês</b><small>Salário, vale, renda extra.</small>", 'data-bv="receita"'),
+    passo(4, p.fixas, "<b>As contas fixas</b><small>Aluguel, luz, internet, escola.</small>", 'data-bv="fixa"'),
+  ].join("");
+}
+
 function boasVindasHtml() {
-  const sozinho = estado.membros.size < 2;
   return `<section class="boas-vindas">
     <h2>Vamos começar.</h2>
-    <p>O app soma o que já tem <b>check</b> (pago ou recebido) e prevê o resto do mês com o que ainda não tem. Em três passos ele já fala com vocês.</p>
+    <p>O app soma o que já tem <b>check</b> (pago ou recebido) e prevê o resto do mês com o que ainda não tem. São quatro passos, em qualquer ordem.</p>
     <form class="passo" id="bv-saldo" novalidate>
       <span class="passo-n">1</span>
       <div><b>Quanto tem na conta hoje?</b><small>O saldo que o banco mostra agora.</small>
         <div class="linha-nome"><input id="bv-saldo-valor" class="num" inputmode="decimal" placeholder="0,00" autocomplete="off" aria-label="Saldo de hoje"><button class="btn" type="submit">Salvar</button></div>
       </div>
     </form>
-    <button class="passo" type="button" data-bv="receita"><span class="passo-n">2</span><div><b>O que entra todo mês</b><small>Salário, vale, renda extra. Toque para lançar.</small></div>${IC.ir}</button>
-    <button class="passo" type="button" data-bv="fixa"><span class="passo-n">3</span><div><b>As contas fixas</b><small>Aluguel, luz, internet, escola. Toque para lançar.</small></div>${IC.ir}</button>
-    ${sozinho ? `<button class="passo" type="button" data-bv="convidar"><span class="passo-n">4</span><div><b>Chame quem divide a casa</b><small>Os dois veem e lançam juntos, cada um no seu celular.</small></div>${IC.ir}</button>` : ""}
+    ${passosHtml(progressoInicio())}
+  </section>`;
+}
+
+// Depois do primeiro lançamento, o que falta aparece numa faixa até tudo estar feito (ou ser dispensado).
+function faltaPoucoHtml() {
+  if (!estado.lancs.length || inicioDispensado()) return "";
+  const p = progressoInicio(), feitos = Object.values(p).filter(Boolean).length;
+  if (feitos === 4) return "";
+  return `<section class="falta-pouco" aria-label="Para começar">
+    <div class="falta-cab"><b>Falta pouco: ${feitos} de 4</b><button class="link" type="button" data-bv="dispensar">Agora não</button></div>
+    ${passosHtml(p)}
   </section>`;
 }
 $("conteudo").addEventListener("submit", async (ev) => {
@@ -2250,12 +2340,12 @@ $("conteudo").addEventListener("submit", async (ev) => {
   const { error } = await sb.from("lancamentos").upsert(linha);
   if (error) { avisar(msgErro(error)); return; }
   await carregar();
-  avisar("Saldo de hoje salvo. Agora o que entra todo mês.");
-  abrirLanc(null, { tipo: "receita", repetir: "mensal", semFim: true });
+  avisar(estado.membros.size < 2 ? "Saldo de hoje salvo. Agora chame quem divide a casa." : "Saldo de hoje salvo. Agora o que entra todo mês.");
 });
 $("conteudo").addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-bv]");
   if (!b) return;
+  if (b.dataset.bv === "dispensar") { try { localStorage.setItem(CHAVE_INICIO, estado.casa.id); } catch (e) {} render(); return; }
   if (b.dataset.bv === "receita") abrirLanc(null, { tipo: "receita", repetir: "mensal", semFim: true });
   else if (b.dataset.bv === "fixa") abrirLanc(null, { tipo: "despesa", repetir: "mensal", semFim: true });
   else $("btn-convidar").click();
