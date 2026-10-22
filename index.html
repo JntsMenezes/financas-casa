@@ -198,18 +198,19 @@
   .frase p { margin: 12px 0 0; font-size: 15.5px; line-height: 1.5; color: var(--muted); max-width: 46ch; }
   .frase p b { color: var(--ink); font-weight: 700; }
 
-  .linhas { margin: 20px 0 0; padding: 14px 14px 12px; border: 1px solid var(--line); border-radius: var(--raio); background: var(--card); }
-  .linhas-area { position: relative; margin-right: 46px; touch-action: pan-y; cursor: crosshair; }
-  .linhas-area svg { display: block; width: 100%; height: 96px; overflow: visible; }
-  .ponta { position: absolute; left: 100%; transform: translate(8px, -50%); display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; pointer-events: none; }
-  .ponta i, .fita-rot span i, .dica i { width: 8px; height: 8px; border-radius: 50%; flex: none; display: inline-block; }
-  .dica { position: absolute; top: -8px; transform: translate(-50%, -100%); display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--ink); color: var(--bg); font-size: 12.5px; white-space: nowrap; pointer-events: none; box-shadow: 0 8px 24px -8px rgba(0,0,0,.4); z-index: 2; }
+  .dica { position: absolute; top: -10px; transform: translate(-50%, -100%); display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--ink); color: var(--bg); font-size: 12.5px; white-space: nowrap; pointer-events: none; box-shadow: 0 8px 24px -8px rgba(0,0,0,.4); z-index: 2; }
   .dica span { display: flex; align-items: center; gap: 6px; }
   .dica b { font-weight: 700; }
-  .linhas .eixo { display: flex; justify-content: space-between; margin-right: 46px; font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-top: 8px; }
-  .linhas-frase { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 14px; line-height: 1.5; color: var(--muted); }
-  .linhas-frase b { color: var(--ink); font-weight: 700; }
-  .ponto-hoje { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; box-shadow: 0 0 0 2px var(--card); pointer-events: none; }
+  .barras-area { position: relative; touch-action: pan-y; cursor: crosshair; }
+  .barras + .barras { margin-top: 12px; }
+  .barras-frase { margin: 12px 0 0 !important; padding-top: 12px; border-top: 1px solid var(--line); font-size: 14px !important; line-height: 1.5; color: var(--muted) !important; }
+  .barras-frase b { color: var(--ink) !important; font-weight: 700; }
+  .nota-barras { font-size: 12.5px !important; margin-top: 6px !important; }
+  .se-tudo { margin: 10px 2px 0; font-size: 14px; color: var(--muted); line-height: 1.45; }
+  .se-tudo b { color: var(--ink); }
+  .ultimos { display: grid; gap: 2px; margin-top: 8px; }
+  .ultimos .ultimo { margin-top: 0; }
+  .ultimo b { color: var(--ink); font-weight: 600; }
   .bloco-hoje { margin-top: 18px; }
   .hoje-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 0 2px 8px; color: var(--primaria); font-size: 13.5px; font-weight: 700; }
   .hoje-cab .num { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--muted); }
