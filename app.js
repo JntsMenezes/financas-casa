@@ -577,10 +577,11 @@ function barrasDiaHtml(pts, hj) {
   const W = 340, H = 86, n = pts.length, passo = W / n, larg = Math.max(3, passo * 0.56);
   const vals = pts.map((p) => p.saldo);
   const max = Math.max(...vals, 0), min = Math.min(...vals, 0), faixa = max - min || 1;
-  const zero = (max / faixa) * H;
+  const zero = min < 0 ? Math.min((max / faixa) * H, H - 9) : (max / faixa) * H;
   const iHoje = pts.findIndex((p) => p.data === hj);
+  const temNeg = min < 0;
   const barras = pts.map((p, i) => {
-    const alt = Math.max(2, (Math.abs(p.saldo) / faixa) * H);
+    const alt = Math.max(p.saldo < 0 ? 7 : 2, (Math.abs(p.saldo) / faixa) * H);
     const y = p.saldo >= 0 ? zero - alt : zero;
     const cor = p.saldo < 0 ? "var(--vermelho)" : "var(--primaria)";
     const op = i === iHoje ? 1 : p.data < hj ? 0.32 : 0.7;
@@ -594,9 +595,9 @@ function barrasDiaHtml(pts, hj) {
   const marcas = [0, 7, 14, 21].filter((i) => i < n - 3).map((i) => `<span>${pts[i].data.slice(8)}</span>`).join("") + `<span>${ult.data.slice(8)}</span>`;
   return `<figure class="barras" style="margin-left:0;margin-right:0">
     <div class="barras-cab"><span>Saldo previsto · dia a dia</span><span class="selo">${iHoje >= 0 ? `hoje ${hj.slice(8)}` : `${n} dias`}</span></div>
-    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Saldo previsto de ${dataCurta(pts[0].data)} a ${dataCurta(ult.data)}, terminando em ${brl.format(ult.saldo)}">${barras}${marca}</svg>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Saldo previsto de ${dataCurta(pts[0].data)} a ${dataCurta(ult.data)}, terminando em ${brl.format(ult.saldo)}">${barras}${marca}${temNeg ? `<line x1="0" x2="${W}" y1="${zero.toFixed(1)}" y2="${zero.toFixed(1)}" stroke="var(--vermelho)" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke" opacity=".7"/>` : ""}</svg>
     <div class="eixo">${marcas}</div>
-    ${menor.saldo < 0 ? `<p>Fica negativo: o ponto mais baixo é <b class="num">${brl.format(menor.saldo)}</b> em ${dataCurta(menor.data)}.</p>`
+    ${menor.saldo < 0 ? `<p>Abaixo da linha vermelha o saldo fica negativo: a partir de ${dataCurta(pts.find((p) => p.saldo < 0).data)}, e o ponto mais baixo é <b class="num">${brl.format(menor.saldo)}</b> em ${dataCurta(menor.data)}.</p>`
       : frente.length ? `<p>O ponto mais baixo daqui para frente é <b class="num" style="color:var(--ink)">${brl.format(menorFrente.saldo)}</b> em ${dataCurta(menorFrente.data)}.</p>` : ""}
   </figure>`;
 }
@@ -639,6 +640,7 @@ function linhasMesHtml(mes, hj, doMes, entradas, saidas, guardado) {
     return cheia + prev;
   };
   const marcaHoje = iHoje >= 0 && iHoje < n - 1 ? `<line x1="${x(iHoje).toFixed(1)}" x2="${x(iHoje).toFixed(1)}" y1="0" y2="${H}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="2 3" vector-effect="non-scaling-stroke" opacity=".6"/>` : "";
+  const pontosHoje = iHoje >= 0 && iHoje < n - 1 ? `<span class="ponto-hoje" style="left:${((x(iHoje) / W) * 100).toFixed(1)}%;top:${((y(ent[iHoje]) / H) * 100).toFixed(1)}%;background:var(--l-ent)"></span><span class="ponto-hoje" style="left:${((x(iHoje) / W) * 100).toFixed(1)}%;top:${((y(sai[iHoje]) / H) * 100).toFixed(1)}%;background:var(--l-sai)"></span>` : "";
   // Nome de cada linha na ponta direita, afastados se ficarem colados.
   let yE = (y(ent[n - 1]) / H) * 100, yS = (y(sai[n - 1]) / H) * 100;
   if (Math.abs(yE - yS) < 16) { const m = (yE + yS) / 2; if (yE <= yS) { yE = m - 8; yS = m + 8; } else { yE = m + 8; yS = m - 8; } }
@@ -648,16 +650,15 @@ function linhasMesHtml(mes, hj, doMes, entradas, saidas, guardado) {
   return `<figure class="linhas" style="margin-left:0;margin-right:0">
     <div class="linhas-area" data-linhas role="img" aria-label="No mês entram ${brl.format(entradas)} e saem ${brl.format(saidas + Math.max(0, guardado))}, contando ${brl.format(Math.max(0, guardado))} guardados">
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${faixas}${marcaHoje}${linha(sai, "--l-sai")}${linha(ent, "--l-ent")}<line class="mira" x1="0" x2="0" y1="0" y2="${H}" stroke="var(--ink)" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0"/></svg>
+      ${pontosHoje}
       <span class="ponta" style="top:${yE.toFixed(1)}%"><i style="background:var(--l-ent)"></i>entra</span>
       <span class="ponta" style="top:${yS.toFixed(1)}%"><i style="background:var(--l-sai)"></i>sai</span>
       <div class="dica" hidden></div>
     </div>
     <div class="eixo">${marcas}</div>
-    <div class="fita-rot">
-      <div><span><i style="background:var(--l-ent)"></i>Entra</span><b class="num">${brl.format(entradas)}</b></div>
-      <div><span><i style="background:var(--l-sai)"></i>Sai</span><b class="num">${brl.format(saidas + Math.max(0, guardado))}</b>${guardado > 0 ? `<small class="num">${brl.format(guardado)} guardados</small>` : ""}</div>
-      <div><span>${sobra >= 0 ? "Sobra" : "Falta"}</span><b class="num">${brl.format(Math.abs(sobra))}</b></div>
-    </div>
+    <p class="linhas-frase">No mês ${mes < hj.slice(0, 7) ? "entraram" : "entram"} <b class="num" style="color:var(--l-ent)">${brl.format(entradas)}</b> e ${mes < hj.slice(0, 7) ? "saíram" : "saem"} <b class="num" style="color:var(--l-sai)">${brl.format(saidas + Math.max(0, guardado))}</b>${guardado > 0 ? `, contando <b class="num">${brl.format(guardado)}</b> guardados` : ""}.
+      ${sobra >= 0 ? `A faixa verde entre as linhas é o que sobra: <b class="num">${brl.format(sobra)}</b>.` : `Sai mais do que entra: faltam <b class="num">${brl.format(-sobra)}</b>, a faixa fica vermelha.`}
+      ${mes >= hj.slice(0, 7) ? "O tracejado é o que ainda está previsto." : ""}</p>
   </figure>`;
 }
 
@@ -688,6 +689,35 @@ $("conteudo").addEventListener("pointerdown", dicaLinhas);
 $("conteudo").addEventListener("pointerleave", tirarDica, true);
 $("conteudo").addEventListener("pointerup", (ev) => { if (ev.pointerType !== "mouse") setTimeout(() => tirarDica(ev), 1600); });
 
+// O que pede ação agora: o que passou da data sem check e o que é de hoje.
+function hojeHtml(hj) {
+  const atrasados = estado.lancs.filter((l) => !l.pago && l.data < hj);
+  const deHoje = estado.lancs.filter((l) => l.data === hj);
+  const falta = deHoje.filter((l) => !l.pago).length + atrasados.length;
+  const cab = `<div class="hoje-cab" id="hoje"><span>Hoje · ${nomeDia.format(deIso(hj))}</span><span class="num">previsto ${brl.format(saldoAte(hj))}</span></div>`;
+  if (!atrasados.length && !deHoje.length) {
+    return `<section class="bloco-hoje">${cab}<div class="em-dia"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Nada para hoje. Está tudo em dia.</span></div></section>`;
+  }
+  return `<section class="bloco-hoje" aria-label="Hoje e atrasados">${cab}
+    ${atrasados.length ? `<div class="secao-tit" id="atrasados">${atrasados.length === 1 ? "Passou da data sem check" : `${atrasados.length} passaram da data sem check`}</div>
+      <div class="lista">${atrasados.map((l) => itemHtml(l, hj, { data: true })).join("")}</div>` : ""}
+    ${deHoje.length ? `<div class="lista" ${atrasados.length ? 'style="margin-top:8px"' : ""}>${deHoje.map((l) => itemHtml(l, hj, { saldo: true })).join("")}</div>` : '<div class="nada-hoje">Nada lançado para hoje.</div>'}
+    ${!falta ? '<div class="em-dia"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>O de hoje já tem check.</span></div>' : ""}
+  </section>`;
+}
+
+// "há 5 min", "hoje às 9h12", "ontem", "12/10": quanto tempo faz, em vez de uma data solta.
+function haQuanto(ts) {
+  const d = new Date(ts), min = Math.round((Date.now() - d) / 6e4);
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min} min`;
+  const dia = iso(d), hj = hoje();
+  const hora = `${d.getHours()}h${String(d.getMinutes()).padStart(2, "0")}`;
+  if (dia === hj) return `hoje às ${hora}`;
+  if (dia === somarDias(hj, -1)) return `ontem às ${hora}`;
+  return dataCurta(dia);
+}
+
 // Quem é a pessoa 1 e a 2 da casa, para a cor de cada um.
 function ordemDe(uid) {
   const ids = [...estado.membros.keys()];
@@ -705,7 +735,7 @@ function casalHtml() {
     <span class="pares" aria-hidden="true">${ids.map((u, i) => `<span class="ini bg-q${i + 1}">${esc((nomeDe(u) || "?").charAt(0).toUpperCase())}</span>`).join("")}</span>
     <span class="nomes">${esc(nomes.join(" e "))}</span>
     <span class="selo ${online ? "" : "off"}">${online ? (ids.length > 1 ? "juntos, ao vivo" : "ao vivo") : navigator.onLine ? "conectando" : "sem internet"}</span>
-  </div>${ultimo ? `<p class="ultimo"><i class="q${ordemDe(ultimo.criado_por)}"></i>${esc(nomeDe(ultimo.criado_por))} lançou por último: ${esc(ultimo.descricao)}, ${/00:00$/.test(quando(ultimo.criado_em)) ? dataCurta(iso(new Date(ultimo.criado_em))) : quando(ultimo.criado_em)}.</p>` : ""}`;
+  </div>${ultimo ? `<p class="ultimo"><i class="q${ordemDe(ultimo.criado_por)}"></i>${esc(nomeDe(ultimo.criado_por))} lançou por último: ${esc(ultimo.descricao)}, ${haQuanto(ultimo.criado_em)}.</p>` : ""}`;
 }
 
 const nBrl = (v, k = "") => `<span class="n num ${v < 0 ? "neg" : ""}" data-n="${k}">${brl.format(v)}</span>`;
@@ -738,12 +768,15 @@ function render() {
       (guardado > 0 ? `, e vocês guardam <b class="num">${brl.format(guardado)}</b>.` : ".");
   } else {
     titulo = mes > mesAtual
-      ? `Dia ${dia}, ${nBrl(fimMes, "fim")}.<span class="l2">Hoje, ${nBrl(naConta, "hoje")}.</span>`
+      ? `Hoje, ${nBrl(naConta, "hoje")}.<span class="l2">Dia ${dia}, ${nBrl(fimMes, "fim")}.</span>`
       : `${nomeDoMes(mes).charAt(0).toUpperCase() + nomeDoMes(mes).slice(1)} fechou com ${nBrl(fimMes, "fim")}.`;
-    apoio = `${mes > mesAtual ? "Entram" : "Entraram"} <b class="num">${brl.format(entradas)}</b> e ${mes > mesAtual ? "saem" : "saíram"} <b class="num">${brl.format(saidas)}</b>` +
+    const inicio = saldoAte(somarDias(mes + "-01", -1));
+    apoio = (mes > mesAtual ? `${nomeDoMes(mes).charAt(0).toUpperCase() + nomeDoMes(mes).slice(1)} começa com <b class="num">${brl.format(inicio)}</b> que sobram de ${nomeDoMes(somarMeses(mes + "-01", -1))}. ` : "") +
+      `${mes > mesAtual ? "Entram" : "Entraram"} <b class="num">${brl.format(entradas)}</b> e ${mes > mesAtual ? "saem" : "saíram"} <b class="num">${brl.format(saidas)}</b>` +
       (guardado > 0 ? `; <b class="num">${brl.format(guardado)}</b> ${mes > mesAtual ? "vão" : "foram"} para as caixinhas.` : ".");
   }
   const fita = linhasMesHtml(mes, hj, doMes, entradas, saidas, guardado);
+  const blocoHoje = mes === mesAtual ? hojeHtml(hj) : "";
 
   // Avisos, cada um leva ao que precisa ser feito.
   const avisos = [];
@@ -753,7 +786,7 @@ function render() {
     avisos.push(`<button class="aviso ruim" data-ir-dia="${primeiro.data}">${IC.alerta}<span>O saldo previsto fica negativo em ${dataCurta(primeiro.data)}: <b class="num">${brl.format(primeiro.saldo)}</b>.</span>${IC.ir}</button>`);
   }
   const atrasados = estado.lancs.filter((l) => !l.pago && l.data < hj);
-  if (atrasados.length) {
+  if (atrasados.length && mes !== mesAtual) {
     const receber = atrasados.filter((l) => l.tipo === "receita").reduce((s, l) => s + Number(l.valor), 0);
     const pagar = atrasados.filter((l) => l.tipo === "despesa").reduce((s, l) => s + Number(l.valor), 0);
     const partes = [receber && `${brl.format(receber)} a receber`, pagar && `${brl.format(pagar)} a pagar`].filter(Boolean).join(" e ");
@@ -800,9 +833,10 @@ function render() {
     <section class="col-resumo">
       ${casalHtml()}
       <div class="frase"><h2>${titulo}</h2><p>${apoio}</p></div>
+      ${blocoHoje}
+      ${avisos.length ? `<div class="avisos">${avisos.join("")}</div>` : ""}
       ${fita}
       ${barrasDiaHtml(pts, hj)}
-      ${avisos.length ? `<div class="avisos">${avisos.join("")}</div>` : ""}
       <nav class="atalhos" aria-label="Mais">
       ${doMes.length ? `<button class="linha-resumo" data-abrir-resumo>${svg('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>')}<span>Para onde foi<small>${MESES[Number(mes.slice(5)) - 1]}/${mes.slice(2, 4)}</small></span>${IC.ir}</button>` : ""}
       ${estado.caixinhas ? `<button class="linha-resumo" data-abrir-caixinhas>${caixaIcone("cofre")}<span>${estado.caixinhas.some((c) => !c.arquivada)
@@ -868,15 +902,14 @@ function extratoHtml(doMes, mes, hj) {
     </button>`;
     if (estado.verPassado) out += diasHtml(pagos, hj, estado.animarPassado);
   }
-  if (atrasados.length) {
+  const mesAtual = mes === hj.slice(0, 7);
+  if (atrasados.length && !mesAtual) {
     out += `<div class="secao-tit" id="atrasados">Passaram da data sem check</div>
       <div class="lista">${atrasados.map((l) => itemHtml(l, hj, { data: true })).join("")}</div>`;
   }
-  if (mes === hj.slice(0, 7)) {
-    out += `<div class="hoje-div" id="hoje"><span>Hoje · ${nomeDia.format(deIso(hj))}</span><span class="num">previsto ${brl.format(saldoAte(hj))}</span></div>`;
-    out += deHoje.length
-      ? `<div class="lista" style="margin-top:8px">${deHoje.map((l) => itemHtml(l, hj, { saldo: true })).join("")}</div>`
-      : '<div class="nada-hoje">Nada lançado para hoje.</div>';
+  if (mesAtual) {
+    // Hoje e atrasados ficam no topo da tela; aqui só a marca do dia, para o extrato seguir.
+    out += `<div class="hoje-div"><span>Hoje · ${deHoje.length ? `${deHoje.length} ${deHoje.length === 1 ? "lançamento" : "lançamentos"} no bloco de hoje` : "nada lançado"}</span><span class="num">previsto ${brl.format(saldoAte(hj))}</span></div>`;
   }
   out += diasHtml(futuros, hj);
   return out;
@@ -892,7 +925,8 @@ function itemHtml(l, hj, op = {}) {
   if (l.caixinha_id) tags.push(`<span class="tag guardar">${l.tipo === "despesa" ? "guardar" : "resgate"}</span>`);
   else if (l.recorrente) tags.push(`<span class="tag">fixa</span>`);
   if (atrasado) tags.push(`<span class="tag atraso">atrasado</span>`);
-  if (l.criado_por) tags.push(`<span class="tag quem q${ordemDe(l.criado_por)}">${esc(nomeDe(l.criado_por))}</span>`);
+  if (l.criado_por) tags.push(`<span class="tag quem q${ordemDe(l.criado_por)}" title="Lançado por ${esc(nomeDe(l.criado_por))}">${esc(nomeDe(l.criado_por))}</span>`);
+  if (Number(l.valor) === 0) tags.push(`<span class="tag atraso">valor a definir</span>`);
   if (estado.pendentes.has(l.id)) tags.push(`<span class="tag atraso">aguardando internet</span>`);
   const feito = l.tipo === "receita" ? "recebido" : "pago";
   return `<div class="item ${baixado ? "baixado" : ""}">
@@ -1036,7 +1070,13 @@ $("tela-app").addEventListener("touchend", () => {
   conteudo.style.opacity = "";
 });
 
-window.addEventListener("scroll", () => $("topo").classList.toggle("rolou", window.scrollY > 4), { passive: true });
+// O botão + sai do caminho enquanto se rola para baixo (não cobre avisos nem valores) e volta ao subir.
+let rolagemAntes = 0;
+window.addEventListener("scroll", () => {
+  const y = window.scrollY;
+  $("topo").classList.toggle("rolou", y > 4);
+  if (Math.abs(y - rolagemAntes) > 8) { $("fab").classList.toggle("escondido", y > rolagemAntes && y > 120); rolagemAntes = y; }
+}, { passive: true });
 
 // ---------- painéis ----------
 
@@ -1058,6 +1098,7 @@ function fecharPaineis(semAnimar) {
   document.body.classList.remove("travado");
 }
 $("fundo").onclick = () => fecharPaineis();
+document.addEventListener("click", (e) => { if (e.target.closest("[data-fechar-painel]")) fecharPaineis(); });
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   if (!$("painel-confirma").hidden) fecharConfirma(false); else fecharPaineis();
