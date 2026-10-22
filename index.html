@@ -546,8 +546,31 @@
     .painel { border-radius: 24px; bottom: 24px; }
   }
 
+  /* Movimento: só o que mostra uma mudança ou comemora algo raro */
+  .frase h2 .n { display: inline-block; }
+  .frase h2 .n.mudou { animation: assentar .24s var(--sai); }
+  @keyframes assentar { from { opacity: 0; transform: translateY(6px); } }
+  .dia.entra { animation: entrarDia .2s var(--sai) both; animation-delay: calc(var(--i, 0) * 30ms); }
+  @keyframes entrarDia { from { opacity: 0; transform: translateY(-4px); } }
+  .item.saindo { opacity: 0; transform: scale(.98); transition: opacity .16s var(--sai), transform .16s var(--sai); }
+  .enche.cresce { transform-origin: left center; animation: crescer .6s var(--sai) both; }
+  @keyframes crescer { from { transform: scaleX(var(--de, 0)); } }
+  .cx.conquista { animation: conquista 1.2s ease-out .45s both; }
+  @keyframes conquista { from { box-shadow: 0 0 0 0 var(--verde-bg), 0 0 0 1px var(--verde); } 40% { box-shadow: 0 0 0 8px var(--verde-bg), 0 0 0 1px var(--verde); } to { box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent; } }
+  .cx-txt small .feito { width: 14px; height: 14px; stroke-width: 2.6; vertical-align: -2px; margin-right: 4px; stroke-dasharray: 24; stroke-dashoffset: 24; animation: desenhar .4s var(--sai) .7s forwards; }
+  @keyframes desenhar { to { stroke-dashoffset: 0; } }
+  .dica:not([hidden]) { animation: surgir .12s var(--sai); }
+  @keyframes surgir { from { opacity: 0; } }
+
+  /* Reduzir movimento: nada desliza nem cresce; o que aparece só esmaece */
+  @keyframes esmaecer { from { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+    *, *::before, *::after { transition-duration: .01ms !important; }
+    .frase h2 .n.mudou, .dia.entra, .grade-cats.aberta { animation: esmaecer .16s ease-out both !important; }
+    .enche.cresce, .check.pulso .bola { animation: none !important; }
+    .cx.conquista { animation-duration: .6s !important; }
+    .cx-txt small .feito { animation: none !important; stroke-dashoffset: 0; }
+    .item.saindo { transform: none; transition: opacity .16s ease-out !important; }
   }
 </style>
 </head>

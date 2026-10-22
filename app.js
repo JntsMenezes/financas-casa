@@ -180,6 +180,14 @@ async function regravar(linhas) {
   const { error } = await sb.from("lancamentos").upsert(linhas.map((l) => ({ ...l })));
   if (error) throw error;
 }
+// Linhas apagadas encolhem e esmaecem antes de a lista ser redesenhada.
+async function despedir(ids) {
+  const linhas = ids.map((id) => document.querySelector(`[data-editar="${id}"]`)?.closest(".item")).filter(Boolean);
+  if (!linhas.length) return;
+  for (const el of linhas) el.classList.add("saindo");
+  await new Promise((r) => setTimeout(r, 170));
+}
+
 // Desfazer uma edição: volta só os campos editáveis de quem ainda existe.
 async function voltarCampos(linhas) {
   const rs = await Promise.all(linhas.map((x) => sb.from("lancamentos").update({
@@ -700,7 +708,9 @@ function casalHtml() {
   </div>${ultimo ? `<p class="ultimo"><i class="q${ordemDe(ultimo.criado_por)}"></i>${esc(nomeDe(ultimo.criado_por))} lançou por último: ${esc(ultimo.descricao)}, ${/00:00$/.test(quando(ultimo.criado_em)) ? dataCurta(iso(new Date(ultimo.criado_em))) : quando(ultimo.criado_em)}.</p>` : ""}`;
 }
 
-const nBrl = (v) => `<span class="n num ${v < 0 ? "neg" : ""}">${brl.format(v)}</span>`;
+const nBrl = (v, k = "") => `<span class="n num ${v < 0 ? "neg" : ""}" data-n="${k}">${brl.format(v)}</span>`;
+// Lembra os números da frase para animar só o que mudou no mesmo mês.
+let fraseAntes = { mes: null, hoje: null, fim: null };
 
 function render() {
   const mes = estado.mes, hj = hoje(), mesAtual = hj.slice(0, 7);
@@ -722,14 +732,14 @@ function render() {
   const guardado = guardadoEm(doMes);
   let titulo, apoio;
   if (mes === mesAtual) {
-    titulo = `Hoje, ${nBrl(naConta)}.<span class="l2">Dia ${dia}, ${nBrl(fimMes)}.</span>`;
+    titulo = `Hoje, ${nBrl(naConta, "hoje")}.<span class="l2">Dia ${dia}, ${nBrl(fimMes, "fim")}.</span>`;
     const partes = [aPagar && `faltam pagar <b class="num">${brl.format(aPagar)}</b>`, aReceber && `entrar <b class="num">${brl.format(aReceber)}</b>`].filter(Boolean);
     apoio = (partes.length ? `Até lá ${partes.join(" e ")}` : "Tudo do mês já tem check") +
       (guardado > 0 ? `, e vocês guardam <b class="num">${brl.format(guardado)}</b>.` : ".");
   } else {
     titulo = mes > mesAtual
-      ? `Dia ${dia}, ${nBrl(fimMes)}.<span class="l2">Hoje, ${nBrl(naConta)}.</span>`
-      : `${nomeDoMes(mes).charAt(0).toUpperCase() + nomeDoMes(mes).slice(1)} fechou com ${nBrl(fimMes)}.`;
+      ? `Dia ${dia}, ${nBrl(fimMes, "fim")}.<span class="l2">Hoje, ${nBrl(naConta, "hoje")}.</span>`
+      : `${nomeDoMes(mes).charAt(0).toUpperCase() + nomeDoMes(mes).slice(1)} fechou com ${nBrl(fimMes, "fim")}.`;
     apoio = `${mes > mesAtual ? "Entram" : "Entraram"} <b class="num">${brl.format(entradas)}</b> e ${mes > mesAtual ? "saem" : "saíram"} <b class="num">${brl.format(saidas)}</b>` +
       (guardado > 0 ? `; <b class="num">${brl.format(guardado)}</b> ${mes > mesAtual ? "vão" : "foram"} para as caixinhas.` : ".");
   }
@@ -806,15 +816,22 @@ function render() {
       ${extratoHtml(doMes, mes, hj)}
     </section>
   </div>`;
+  if (fraseAntes.mes === mes) {
+    for (const [k, v] of [["hoje", naConta], ["fim", fimMes]]) {
+      if (fraseAntes[k] !== null && fraseAntes[k] !== v) document.querySelector(`.frase [data-n="${k}"]`)?.classList.add("mudou");
+    }
+  }
+  fraseAntes = { mes, hoje: naConta, fim: fimMes };
+  estado.animarPassado = false;
 }
 
-function diasHtml(lista, hj) {
+function diasHtml(lista, hj, entrar = false) {
   const grupos = new Map();
   for (const l of lista) { if (!grupos.has(l.data)) grupos.set(l.data, []); grupos.get(l.data).push(l); }
-  let out = "";
+  let out = "", i = 0;
   for (const [data, itens] of grupos) {
     const futuro = data >= hj && estado.filtro === "todos";
-    out += `<div class="dia" id="dia-${data}">
+    out += `<div class="dia ${entrar ? "entra" : ""}" id="dia-${data}"${entrar ? ` style="--i:${Math.min(i++, 6)}"` : ""}>
       <div class="dia-cab"><span>${nomeDia.format(deIso(data))}</span></div>
       <div class="lista">${itens.map((l) => itemHtml(l, hj, { saldo: futuro })).join("")}</div>
     </div>`;
@@ -849,7 +866,7 @@ function extratoHtml(doMes, mes, hj) {
     out += `<button class="recolhido ${estado.verPassado ? "aberto" : ""}" data-alternar-passado aria-expanded="${estado.verPassado}">
       ${IC.check}<span class="num">${ini === fim ? dataCurta(ini) : `${dataCurta(ini).slice(0, 2)} a ${dataCurta(fim)}`} · ${pagos.length} ${pagos.length === 1 ? "lançamento já resolvido" : "lançamentos já resolvidos"}</span>${IC.baixo}
     </button>`;
-    if (estado.verPassado) out += diasHtml(pagos, hj);
+    if (estado.verPassado) out += diasHtml(pagos, hj, estado.animarPassado);
   }
   if (atrasados.length) {
     out += `<div class="secao-tit" id="atrasados">Passaram da data sem check</div>
@@ -916,7 +933,7 @@ $("conteudo").addEventListener("click", async (ev) => {
   }
   if (t("[data-check]")) { await alternarPago(t("[data-check]").dataset.check); return; }
   if (t("[data-editar]")) { abrirLanc(estado.lancs.find((l) => l.id === t("[data-editar]").dataset.editar)); return; }
-  if (t("[data-alternar-passado]")) { estado.verPassado = !estado.verPassado; render(); return; }
+  if (t("[data-alternar-passado]")) { estado.verPassado = !estado.verPassado; estado.animarPassado = estado.verPassado; render(); return; }
   if (t("[data-abrir-series]")) { renderSeries(); abrirPainel($("painel-series")); return; }
   if (t("[data-nova-receita]")) { abrirLanc(null, { tipo: "receita", data: estado.mes + "-05" }); return; }
   if (t("[data-ir-dia]")) {
@@ -1329,6 +1346,7 @@ $("lanc-apagar").onclick = async () => {
   const { error } = await sb.from("lancamentos").delete().eq("id", l.id);
   if (error) return avisar(msgErro(error));
   fecharPaineis();
+  await despedir([l.id]);
   await carregar();
   avisar(`Apagado: ${l.descricao}`, () => regravar(antes));
 };
@@ -1352,6 +1370,7 @@ $("lanc-apagar-serie").onclick = async () => {
     return avisar(msgErro(error));
   }
   fecharPaineis();
+  await despedir(apagados.map((x) => x.id));
   await carregar();
   avisar(`${apagados.length} apagados.`, async () => {
     await regravar(apagados);
@@ -1597,6 +1616,11 @@ function gastoMedioMensal() {
 
 function abrirCaixinhas() { renderCaixinhas(); abrirPainel($("painel-caixinhas")); }
 
+// Fração de cada caixinha na última vez que a lista apareceu, para a barra crescer dali.
+const fracaoAntes = new Map();
+function jaComemorou(id) { try { return localStorage.getItem("fin-objetivo-" + id) === "1"; } catch (e) { return true; } }
+function marcarComemorado(id) { try { localStorage.setItem("fin-objetivo-" + id, "1"); } catch (e) {} }
+
 function renderCaixinhas() {
   const lista = caixinhasAtivas(), alvo = $("lista-caixinhas");
   if (!lista.length) {
@@ -1619,13 +1643,18 @@ function renderCaixinhas() {
       const real = c.saldo_real != null
         ? `<div class="nota num">Saldo informado em ${dataMedia(c.saldo_real_em)}. ${p.rendeu >= 0 ? `Rendeu ${brl.format(p.rendeu)}` : `Tem ${brl.format(-p.rendeu)} a menos`} além do que foi guardado pelo app.</div>`
         : "";
-      return `<div class="cx">
+      const antes = fracaoAntes.get(c.id), agora = p.fracao ?? 0;
+      fracaoAntes.set(c.id, agora);
+      const cresce = antes != null && agora > antes && agora > 0;
+      const festa = p.obj && !p.falta && !jaComemorou(c.id);
+      if (festa) marcarComemorado(c.id);
+      return `<div class="cx ${festa ? "conquista" : ""}">
         <button class="cx-cab" type="button" data-editar-caixa="${c.id}">
           <span class="cat-ic cx">${caixaIcone(c.icone)}</span>
-          <span class="cx-txt"><span class="cx-nome">${esc(c.nome)}</span><small class="num ${st.tom}">${st.txt}</small></span>
+          <span class="cx-txt"><span class="cx-nome">${esc(c.nome)}</span><small class="num ${st.tom}">${festa ? '<svg class="ic feito" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>' : ""}${st.txt}</small></span>
           <b class="num">${brl.format(p.atual)}</b>
         </button>
-        ${p.obj ? `<div class="trilho"><span class="enche receita" style="width:${(p.fracao * 100).toFixed(1)}%"></span></div>
+        ${p.obj ? `<div class="trilho"><span class="enche receita ${cresce ? "cresce" : ""}" style="width:${(p.fracao * 100).toFixed(1)}%${cresce ? `;--de:${(antes / agora).toFixed(3)}` : ""}"></span></div>
           <div class="barra-rodape num"><span>${Math.round(p.fracao * 100)}% de ${brl.format(p.obj)}</span><span>${p.falta ? `faltam ${brl.format(p.falta)}` : "objetivo alcançado"}</span></div>` : ""}
         ${real}
         <div class="duas">

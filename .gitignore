@@ -7,3 +7,5 @@ importar*.sql
 # Notas locais (têm dados da família) e área de trabalho do design
 PRODUCT.md
 .impeccable/
+
+graphify-out/
