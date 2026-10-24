@@ -209,7 +209,7 @@ async function despedir(ids) {
 // Desfazer uma edição: volta só os campos editáveis de quem ainda existe.
 async function voltarCampos(linhas) {
   const rs = await Promise.all(linhas.map((x) => sb.from("lancamentos").update({
-    descricao: x.descricao, tipo: x.tipo, valor: x.valor, data: x.data, pago: x.pago,
+    descricao: x.descricao, tipo: x.tipo, valor: x.valor, data: x.data, pago: x.pago, observacao: x.observacao ?? null,
     ...(estado.temCategoria ? { categoria: x.categoria } : {}),
   }).eq("id", x.id)));
   const r = rs.find((x) => x.error);
@@ -1023,6 +1023,7 @@ function itemHtml(l, hj, op = {}) {
       <span class="cat-ic ${l.caixinha_id ? "cx" : ""}" title="${esc(nomeCatDe(l))}">${iconeDe(l)}</span>
       <div class="txt">
         <div class="desc">${esc(l.descricao)}</div>
+        ${l.observacao ? `<div class="obs" title="${esc(l.observacao)}">${esc(l.observacao)}</div>` : ""}
         ${tags.length ? `<div class="meta">${tags.join("")}</div>` : ""}
       </div>
       <div class="dir">
@@ -1420,6 +1421,7 @@ function abrirLanc(l, padrao = {}) {
   const dataPadrao = padrao.data || (estado.mes === hoje().slice(0, 7) ? hoje() : estado.mes + "-01");
   $("lanc-data").value = l ? l.data : dataPadrao;
   $("lanc-pago").checked = l ? l.pago : dataPadrao <= hoje();
+  $("lanc-obs").value = l?.observacao || "";
   $("bloco-repetir").hidden = !!l;
   $("lanc-repetir").value = l ? "nao" : padrao.repetir || "nao";
   $("lanc-meses").value = 12;
@@ -1449,6 +1451,7 @@ $("painel-lanc").addEventListener("submit", async (ev) => {
   const valor = lerValor($("lanc-valor").value);
   const descricao = $("lanc-desc").value.trim().replace(/\s+/g, " ");
   const data = $("lanc-data").value;
+  const observacao = $("lanc-obs").value.trim().replace(/\s+/g, " ") || null;
   const erro = (m) => { $("lanc-erro").textContent = m; };
   if (!Number.isFinite(valor)) return erro("Digite um valor válido, por exemplo 150 ou 24,90.");
   if (!descricao) return erro("Escreva uma descrição.");
@@ -1464,10 +1467,10 @@ $("painel-lanc").addEventListener("submit", async (ev) => {
       const naSerie = l.grupo && estado.escopoSerie === "proximos";
       // Nos próximos vai só o que mudou: um check aqui não pode apagar um valor diferente posto num mês adiante.
       const mudou = Object.fromEntries(Object.entries(campos).filter(([k, v]) => (k === "valor" ? Number(l.valor) !== v : (l[k] ?? null) !== (v ?? null))));
-      const temMudanca = Object.keys(mudou).length || data !== l.data;
+      const temMudanca = Object.keys(mudou).length || data !== l.data; // observação fica só neste
       const proximos = naSerie && temMudanca ? estado.lancs.filter((x) => x.grupo === l.grupo && x.data > l.data) : [];
       const antes = [l, ...proximos].map((x) => ({ ...x }));
-      let r = await sb.from("lancamentos").update({ ...campos, data, pago: $("lanc-pago").checked }).eq("id", l.id).select("id");
+      let r = await sb.from("lancamentos").update({ ...campos, data, observacao, pago: $("lanc-pago").checked }).eq("id", l.id).select("id");
       if (r.error) throw r.error;
       if (!r.data.length) { await carregar(); throw new Error("Esse lançamento foi apagado em outro celular."); }
       if (proximos.length && data === l.data) {
@@ -1492,7 +1495,7 @@ $("painel-lanc").addEventListener("submit", async (ev) => {
       }
       avisar(antes.length > 1 ? `${antes.length} lançamentos alterados.` : "Alterado.", () => voltarCampos(antes));
     } else {
-      const base = { casa_id: estado.casa.id, descricao, tipo: tipoSel, valor, ...cat };
+      const base = { casa_id: estado.casa.id, descricao, tipo: tipoSel, valor, observacao, ...cat };
       const pagoPrimeiro = $("lanc-pago").checked;
       const rep = $("lanc-repetir").value;
       const semFim = (rep === "mensal" || rep === "semanal") && $("lanc-semfim").checked && !!estado.seriesDb;
@@ -2822,9 +2825,10 @@ let buscaTimer;
 function buscar() {
   const q = normalizar($("busca-q").value.trim());
   const alvo = $("busca-res");
-  if (q.length < 2) { alvo.innerHTML = '<div class="nota">Procure por descrição, categoria ou valor. Ex.: mercado, escola, 1400.</div>'; return; }
+  if (q.length < 2) { alvo.innerHTML = '<div class="nota">Procure por descrição, observação, categoria ou valor. Ex.: mercado, escola, 1400.</div>'; return; }
   const achados = estado.lancs.filter((l) =>
     normalizar(l.descricao).includes(q) ||
+    normalizar(l.observacao || "").includes(q) ||
     normalizar(catInfo(l.tipo, categoriaDe(l)).nome).includes(q) ||
     mostrarValor(Number(l.valor)).replace(/\./g, "").includes(q.replace(/\./g, ""))
   ).reverse();
@@ -2864,6 +2868,7 @@ function mudancas(a, d) {
   if (Number(a.valor) !== Number(d.valor)) out.push(`valor: ${brl.format(Number(a.valor))} → ${brl.format(Number(d.valor))}`);
   if (a.data !== d.data) out.push(`data: ${dataCurta(a.data)} → ${dataCurta(d.data)}`);
   if (a.tipo !== d.tipo) out.push(`tipo: ${rotTipo(a.tipo)} → ${rotTipo(d.tipo)}`);
+  if ((a.observacao || "") !== (d.observacao || "")) out.push(d.observacao ? `observação: ${esc(d.observacao)}` : "tirou a observação");
   if (a.pago !== d.pago) {
     const feito = d.tipo === "receita" ? "recebido" : "pago";
     out.push(d.pago ? `marcou como ${feito}` : "tirou o check");

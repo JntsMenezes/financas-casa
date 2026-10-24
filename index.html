@@ -140,11 +140,14 @@
   .caixa p { color: var(--muted); margin: 0 0 24px; font-size: 15px; }
   .campo { display: block; margin-bottom: 14px; }
   .campo > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
-  .campo input, .campo select {
+  .campo input, .campo select, .campo textarea {
     width: 100%; font-size: 16px; padding: 13px 14px; border: 1px solid var(--line);
     border-radius: 12px; background: var(--campo); outline: none; transition: border-color .15s, box-shadow .15s;
   }
-  .campo input:focus, .campo select:focus { border-color: var(--primaria); box-shadow: 0 0 0 3px var(--primaria-bg); }
+  .campo textarea { display: block; font: inherit; font-size: 16px; color: var(--ink); resize: vertical; min-height: 52px; }
+  .campo > span small { font-weight: 400; }
+  .item .obs { font-size: 12.5px; color: var(--muted); line-height: 1.35; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .campo input:focus, .campo select:focus, .campo textarea:focus { border-color: var(--primaria); box-shadow: 0 0 0 3px var(--primaria-bg); }
   .erro { color: var(--vermelho); font-size: 14px; min-height: 20px; margin: 4px 0 10px; }
   .caixa .btn.sec { margin-top: 10px; }
 
@@ -720,6 +723,7 @@
   <div class="grade-cats" id="lanc-cats" role="radiogroup" aria-label="Categoria"></div>
   <label class="campo"><span>Data</span><input type="date" id="lanc-data"></label>
   <label class="toggle"><span id="lanc-pago-rot">Já foi pago</span><input type="checkbox" id="lanc-pago"></label>
+  <label class="campo"><span>Observação <small>(opcional)</small></span><textarea id="lanc-obs" rows="2" maxlength="300" placeholder="Ex.: pago no cartão da mãe, dividido com a Larissa"></textarea></label>
 
   <div id="bloco-repetir">
     <label class="campo"><span>Repetir</span>
@@ -929,7 +933,7 @@
 <div class="painel painel-busca" id="painel-busca" hidden>
   <div class="alca" aria-hidden="true"></div>
   <h2>Buscar</h2>
-  <label class="campo busca-campo"><span class="sr">Buscar</span><input type="search" id="busca-q" placeholder="Descrição, categoria ou valor" autocomplete="off" enterkeyhint="search"></label>
+  <label class="campo busca-campo"><span class="sr">Buscar</span><input type="search" id="busca-q" placeholder="Descrição, observação, categoria ou valor" autocomplete="off" enterkeyhint="search"></label>
   <div id="busca-res"></div>
 </div>
 
