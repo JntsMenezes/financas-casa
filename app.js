@@ -1230,6 +1230,7 @@ function definirTipo(t) {
   $("lanc-pago-rot").textContent = t === "receita" ? "Já foi recebido" : "Já foi pago";
   if (mudou || !CATS[t].some((c) => c[0] === estado.categoriaSel)) { catManual = false; adivinharNoForm(); }
   renderCats();
+  preencherSugestoes();
 }
 function adivinharNoForm() {
   if (catManual) return;
@@ -1340,15 +1341,16 @@ $("lanc-desc").addEventListener("change", () => {
   }
 });
 
+// Sugestões só do tipo escolhido: em Despesa aparecem despesas, em Receita, receitas.
 function preencherSugestoes() {
   const vistos = new Map();
-  for (const l of estado.lancs) vistos.set(l.descricao.toLowerCase(), l.descricao);
+  for (const l of estado.lancs) if (l.tipo === tipoSel) vistos.set(l.descricao.toLowerCase(), l.descricao);
   $("sugestoes").innerHTML = [...vistos.values()].sort((a, b) => a.localeCompare(b, "pt-BR"))
     .map((d) => `<option value="${esc(d)}"></option>`).join("");
   // As 4 descrições mais lançadas nos últimos 60 dias viram atalho (fixas e caixinhas ficam de fora).
   const desde = somarDias(hoje(), -60), conta = new Map();
   for (const l of estado.lancs) {
-    if (l.data < desde || l.recorrente || l.caixinha_id || l.parcelas) continue;
+    if (l.tipo !== tipoSel || l.data < desde || l.recorrente || l.caixinha_id || l.parcelas) continue;
     const k = l.descricao.toLowerCase();
     conta.set(k, { d: l.descricao, n: (conta.get(k)?.n || 0) + 1 });
   }
@@ -1368,7 +1370,6 @@ $("lanc-recentes").onclick = (e) => {
 
 function abrirLanc(l, padrao = {}) {
   estado.editando = l || null;
-  preencherSugestoes();
   $("lanc-erro").textContent = "";
   $("lanc-titulo").textContent = l ? "Editar lançamento" : "Novo lançamento";
   $("lanc-valor").value = l ? mostrarValor(Number(l.valor)) : padrao.valor != null ? mostrarValor(Number(padrao.valor)) : "";
