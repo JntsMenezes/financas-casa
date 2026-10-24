@@ -549,7 +549,7 @@ function renderSeries() {
     todas.map((s) => `<div class="serie">
       <div>
         <div class="desc">${esc(s.ultimo.descricao)}</div>
-        <small class="num">${s.semanal ? "toda semana" : "todo mês"} · ${brl.format(Number(s.ultimo.valor))} · ${s.semFim ? "sem data para acabar" : acabando.has(s.grupo) ? `<b style='color:var(--aviso-atencao)'>acaba</b> ${dataMedia(s.ultimo.data)}` : `${s.ultimo.data < hoje() ? "acabou" : "vai até"} ${dataMedia(s.ultimo.data)}`}</small>
+        <small class="num">${s.semanal ? ((w) => (w === 0 || w === 6 ? "todo " : "toda ") + DIAS_SEMANA[w])(deIso(s.ultimo.data).getDay()) : "todo mês"} · ${brl.format(Number(s.ultimo.valor))} · ${s.semFim ? "sem data para acabar" : acabando.has(s.grupo) ? `<b style='color:var(--aviso-atencao)'>acaba</b> ${dataMedia(s.ultimo.data)}` : `${s.ultimo.data < hoje() ? "acabou" : "vai até"} ${dataMedia(s.ultimo.data)}`}</small>
       </div>
       ${s.semFim ? "" : `<button class="btn sec" type="button" data-estender="${s.grupo}" aria-label="Repetir mais 12 vezes">+12</button>`}
       ${podeSemFim ? `<label class="interruptor" title="Repetir sempre"><input type="checkbox" data-sem-fim="${s.grupo}" ${s.semFim ? "checked" : ""}><span>Sempre</span></label>` : ""}
@@ -1267,16 +1267,45 @@ function escopoSerie(e) {
 $("seg-serie").onclick = (e) => { const b = e.target.closest("[data-escopo]"); if (b) escopoSerie(b.dataset.escopo); };
 $("lanc-tipo").onclick = (e) => { const b = e.target.closest("[data-tipo]"); if (b) definirTipo(b.dataset.tipo); };
 
+const DIAS_SEMANA = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+function diasMarcados() { return [...$("lanc-dias").children].filter((b) => b.classList.contains("ativo")).map((b) => Number(b.dataset.dow)); }
+function marcarDias(dows) { for (const b of $("lanc-dias").children) b.classList.toggle("ativo", dows.includes(Number(b.dataset.dow))); }
+$("lanc-dias").onclick = (e) => { const b = e.target.closest("[data-dow]"); if (b) { b.classList.toggle("ativo"); atualizarPrevia(); } };
+// Datas de cada dia da semana marcado, de `data` até antes de `ate` (uma lista por dia: cada dia vira uma série).
+function datasSemanais(data, dows, ate) {
+  return dows.map((w) => {
+    let d = somarDias(data, (w - deIso(data).getDay() + 7) % 7);
+    const ds = [];
+    for (; d < ate; d = somarDias(d, 7)) ds.push(d);
+    return ds;
+  }).filter((ds) => ds.length);
+}
+function fimSemanal(data, semFim) {
+  return semFim ? somarMeses(data, 6) : somarMeses(data, Math.min(60, Math.max(1, parseInt($("lanc-meses").value, 10) || 12)));
+}
+function nomesDias(dows) {
+  const ns = [...dows].sort().map((w) => DIAS_SEMANA[w]);
+  return ns.length > 1 ? ns.slice(0, -1).join(", ") + " e " + ns[ns.length - 1] : ns[0];
+}
+
 function atualizarPrevia() {
   const v = $("lanc-repetir").value, data = $("lanc-data").value;
-  $("bloco-meses").hidden = v !== "mensal";
+  $("bloco-meses").hidden = v !== "mensal" && v !== "semanal";
+  $("bloco-semana").hidden = v !== "semanal";
   $("bloco-parcelas").hidden = v !== "parcelado";
   const p = $("lanc-previa");
   p.hidden = v === "nao" || !data;
   if (p.hidden) return;
-  const semFim = v === "mensal" && $("lanc-semfim").checked;
+  const semFim = (v === "mensal" || v === "semanal") && $("lanc-semfim").checked;
   $("bloco-qtd-meses").hidden = semFim;
-  if (semFim) {
+  if (v === "semanal") {
+    const dows = diasMarcados();
+    if (!dows.length) { p.textContent = "Marque pelo menos um dia."; return; }
+    const ds = datasSemanais(data, dows, fimSemanal(data, semFim)).flat().sort();
+    p.textContent = semFim
+      ? `Toda semana (${nomesDias(dows)}). Cria até ${dataMedia(ds[ds.length - 1])} agora e continua criando sozinho.`
+      : `Toda semana (${nomesDias(dows)}): ${ds.length} lançamentos, de ${dataMedia(ds[0])} a ${dataMedia(ds[ds.length - 1])}.`;
+  } else if (semFim) {
     p.textContent = `Cria os próximos 12 meses agora (até ${dataMedia(somarMeses(data, 11))}) e continua criando sozinho.`;
   } else if (v === "mensal") {
     const n = Math.min(60, Math.max(2, parseInt($("lanc-meses").value, 10) || 12));
@@ -1288,6 +1317,7 @@ function atualizarPrevia() {
       : "A parcela atual precisa estar entre 1 e o total.";
   }
 }
+$("lanc-repetir").addEventListener("change", () => { if ($("lanc-repetir").value === "semanal" && !diasMarcados().length && $("lanc-data").value) { marcarDias([deIso($("lanc-data").value).getDay()]); atualizarPrevia(); } });
 for (const id of ["lanc-repetir", "lanc-meses", "lanc-parc", "lanc-parcs", "lanc-semfim"]) $(id).addEventListener("input", atualizarPrevia);
 $("lanc-semfim").addEventListener("change", atualizarPrevia);
 
@@ -1358,6 +1388,7 @@ function abrirLanc(l, padrao = {}) {
   $("bloco-repetir").hidden = !!l;
   $("lanc-repetir").value = l ? "nao" : padrao.repetir || "nao";
   $("lanc-meses").value = 12;
+  marcarDias([]);
   $("lanc-parc").value = 1;
   $("lanc-parcs").value = 2;
   atualizarPrevia();
@@ -1428,9 +1459,16 @@ $("painel-lanc").addEventListener("submit", async (ev) => {
       const base = { casa_id: estado.casa.id, descricao, tipo: tipoSel, valor, ...cat };
       const pagoPrimeiro = $("lanc-pago").checked;
       const rep = $("lanc-repetir").value;
-      const semFim = rep === "mensal" && $("lanc-semfim").checked && !!estado.seriesDb;
+      const semFim = (rep === "mensal" || rep === "semanal") && $("lanc-semfim").checked && !!estado.seriesDb;
       let linhas;
-      if (rep === "mensal") {
+      if (rep === "semanal") {
+        const dows = diasMarcados();
+        if (!dows.length) { btn.disabled = false; return erro("Marque pelo menos um dia da semana."); }
+        linhas = datasSemanais(data, dows, fimSemanal(data, semFim)).flatMap((ds) => {
+          const grupo = crypto.randomUUID();
+          return ds.map((d) => ({ ...base, data: d, pago: d === data && pagoPrimeiro, recorrente: true, grupo }));
+        });
+      } else if (rep === "mensal") {
         const n = semFim ? 12 : Math.min(60, Math.max(2, parseInt($("lanc-meses").value, 10) || 12));
         const grupo = crypto.randomUUID();
         linhas = Array.from({ length: n }, (_, i) => ({ ...base, data: somarMeses(data, i), pago: i === 0 && pagoPrimeiro, recorrente: true, grupo }));
@@ -1459,8 +1497,12 @@ $("painel-lanc").addEventListener("submit", async (ev) => {
       const { error } = await sb.from("lancamentos").insert(linhas);
       if (error && ehErroRede(error)) { guardar(); return; }
       if (error) throw error;
+      const gruposNovos = semFim ? [...new Set(linhas.map((x) => x.grupo))] : [];
       if (semFim) {
-        const r = await sb.from("series").insert({ grupo: linhas[0].grupo, casa_id: estado.casa.id, passo: "mes", sem_fim: true, gerado_ate: linhas[linhas.length - 1].data });
+        const r = await sb.from("series").insert(gruposNovos.map((g) => ({
+          grupo: g, casa_id: estado.casa.id, passo: rep === "semanal" ? "semana" : "mes", sem_fim: true,
+          gerado_ate: linhas.filter((x) => x.grupo === g).at(-1).data,
+        })));
         if (r.error) {
           try { await apagarIds(linhas.map((x) => x.id)); } catch (e) {
             await carregar();
@@ -1471,9 +1513,8 @@ $("painel-lanc").addEventListener("submit", async (ev) => {
       }
       vibrar(12);
       const ids = linhas.map((x) => x.id);
-      const grupoNovo = semFim ? linhas[0].grupo : null;
       avisar(semFim ? "Conta fixa criada, sem data para acabar." : linhas.length > 1 ? `${linhas.length} lançamentos criados.` : "Lançado.", async () => {
-        if (grupoNovo) { const r = await sb.from("series").delete().eq("grupo", grupoNovo); if (r.error) throw r.error; }
+        if (gruposNovos.length) { const r = await sb.from("series").delete().in("grupo", gruposNovos); if (r.error) throw r.error; }
         await apagarIds(ids);
       });
       estado.mes = data.slice(0, 7);

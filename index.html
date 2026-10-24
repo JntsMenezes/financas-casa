@@ -403,6 +403,8 @@
   .duas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .toggle { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 2px 0 10px; font-size: 15px; }
   .toggle input { width: 24px; height: 24px; accent-color: var(--verde); }
+  .dias-semana { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 14px; }
+  .dias-semana .chip { padding: 0; font-size: 13px; }
   .previa { font-size: 13px; color: var(--muted); margin: -6px 0 12px; }
   .acoes-extra { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 8px; margin-top: 8px; }
   .acoes-extra .btn { width: auto; flex: 1 1 auto; }
@@ -716,9 +718,22 @@
       <select id="lanc-repetir">
         <option value="nao">Não repetir</option>
         <option value="mensal">Todo mês (conta fixa)</option>
+        <option value="semanal">Toda semana (escolher os dias)</option>
         <option value="parcelado">Parcelado</option>
       </select>
     </label>
+    <div id="bloco-semana" hidden>
+      <div class="campo"><span>Em quais dias</span></div>
+      <div class="dias-semana" id="lanc-dias" role="group" aria-label="Dias da semana">
+        <button type="button" class="chip" data-dow="0" aria-label="Domingo">Dom</button>
+        <button type="button" class="chip" data-dow="1" aria-label="Segunda">Seg</button>
+        <button type="button" class="chip" data-dow="2" aria-label="Terça">Ter</button>
+        <button type="button" class="chip" data-dow="3" aria-label="Quarta">Qua</button>
+        <button type="button" class="chip" data-dow="4" aria-label="Quinta">Qui</button>
+        <button type="button" class="chip" data-dow="5" aria-label="Sexta">Sex</button>
+        <button type="button" class="chip" data-dow="6" aria-label="Sábado">Sáb</button>
+      </div>
+    </div>
     <div id="bloco-meses" hidden>
       <label class="toggle" id="bloco-semfim"><span>Sem data para acabar</span><input type="checkbox" id="lanc-semfim"></label>
       <label class="campo" id="bloco-qtd-meses"><span>Por quantos meses</span><input type="number" id="lanc-meses" min="2" max="60" value="12" inputmode="numeric"></label>
