@@ -103,6 +103,8 @@ const estado = {
   seriesDb: null,        // grupo -> linha da tabela series; null se a tabela não existe
   limites: null,         // categoria de despesa -> limite mensal; null se a tabela não existe
   caixinhas: null,       // dinheiro guardado; null se a tabela não existe (07_caixinhas.sql)
+  diaADia: null,         // gasto do dia a dia que a projeção desconta por mês; null = ainda não definido
+  descontos: null,       // descontos do holerite (11_planejamento.sql); null se a tabela não existe
   pendentes: new Set(),  // ids esperando internet
   filtroCat: null,
   categoriaSel: null,
@@ -277,6 +279,7 @@ function gravarCache() {
       user: estado.sessao?.user?.id, casa: estado.casa, lancs: estado.lancs, membros: [...estado.membros.entries()],
       series: estado.seriesDb ? [...estado.seriesDb.entries()] : null,
       limites: estado.limites ? [...estado.limites.entries()] : null, caixinhas: estado.caixinhas, quando: Date.now(),
+      diaADia: estado.diaADia, descontos: estado.descontos,
     }));
   } catch (e) { /* armazenamento cheio ou bloqueado: segue sem cache */ }
 }
@@ -292,6 +295,8 @@ async function abrirCasa() {
     estado.membros = new Map(cache.membros);
     estado.seriesDb = cache.series ? new Map(cache.series) : null;
     estado.limites = cache.limites ? new Map(cache.limites) : null;
+    estado.diaADia = cache.diaADia ?? null;
+    estado.descontos = cache.descontos ?? null;
     estado.caixinhas = cache.caixinhas || null;
     mostrarTela("tela-app");
     definirLancs(aplicarFila(cache.lancs));
@@ -352,11 +357,13 @@ async function carregar() {
     for (const l of data) todos.set(l.id, l);
     if (data.length < 1000) break;
   }
-  const [s, lim, cx, hi] = await Promise.all([
+  const [s, lim, cx, hi, pl, df] = await Promise.all([
     sb.from("series").select("*").eq("casa_id", estado.casa.id),
     sb.from("limites").select("categoria, valor").eq("casa_id", estado.casa.id),
     sb.from("caixinhas").select("*").eq("casa_id", estado.casa.id).order("ordem").order("criado_em"),
     sb.from("historico").select("user_id, acao, quando, antes, depois").eq("casa_id", estado.casa.id).order("quando", { ascending: false }).limit(40),
+    sb.from("planejamento").select("dia_a_dia").eq("casa_id", estado.casa.id),
+    sb.from("descontos_folha").select("*").eq("casa_id", estado.casa.id).order("ate"),
   ]);
   if (!hi.error) estado.recentes = hi.data;
   if (seq !== seqCarga) return true; // uma carga mais nova já está a caminho
@@ -364,6 +371,8 @@ async function carregar() {
   if (!s.error || tabelaAusente(s)) estado.seriesDb = s.error ? null : new Map(s.data.map((x) => [x.grupo, x]));
   if (!lim.error || tabelaAusente(lim)) estado.limites = lim.error ? null : new Map(lim.data.map((x) => [x.categoria, Number(x.valor)]));
   if (!cx.error || tabelaAusente(cx)) estado.caixinhas = cx.error ? null : cx.data;
+  if (!pl.error) estado.diaADia = pl.data[0]?.dia_a_dia != null ? Number(pl.data[0].dia_a_dia) : null;
+  if (!df.error || tabelaAusente(df)) estado.descontos = df.error ? null : df.data;
   const falha = [s, lim, cx].find((r) => r.error && !tabelaAusente(r));
   estado.cargaFalhou = !!falha;
   definirLancs(aplicarFila([...todos.values()]));
@@ -539,11 +548,34 @@ async function estenderSeries(lista) {
   return linhas.map((l) => l.id);
 }
 
+// Daqui para frente: conta fixa com outra conta fixa ou lançamento avulso de mesmo nome no mesmo dia (semanal) ou mês (mensal).
+function seriesDuplicadas(todas) {
+  const desde = hoje().slice(0, 7), chave = (l) => l.tipo + "|" + normalizar(l.descricao);
+  const porNome = new Map();
+  for (const l of estado.lancs) {
+    if (l.data.slice(0, 7) < desde || l.caixinha_id) continue;
+    if (!porNome.has(chave(l))) porNome.set(chave(l), []);
+    porNome.get(chave(l)).push(l);
+  }
+  const out = new Map();
+  for (const s of todas) {
+    const k = (l) => (s.semanal ? l.data : l.data.slice(0, 7));
+    const dela = new Set(s.ls.filter((l) => l.data.slice(0, 7) >= desde).map(k));
+    const iguais = (porNome.get(chave(s.ultimo)) || []).filter((l) => l.grupo !== s.grupo && dela.has(k(l)));
+    if (!iguais.length) continue;
+    const d = out.get(chave(s.ultimo)) || { desc: s.ultimo.descricao, datas: new Set() };
+    for (const l of iguais) d.datas.add(l.data);
+    out.set(chave(s.ultimo), d);
+  }
+  return [...out.values()].map((d) => ({ desc: d.desc, n: d.datas.size, primeira: [...d.datas].sort()[0] }));
+}
+
 function renderSeries() {
   const todas = series(), acabando = new Set(seriesAcabando().map((s) => s.grupo));
+  const dups = seriesDuplicadas(todas);
   const n = acabando.size;
   const podeSemFim = !!estado.seriesDb;
-  $("lista-series").innerHTML = (todas.length ? "" : '<div class="vazio">Nenhuma conta fixa ainda.<br>Ao lançar, escolha "Todo mês" em Repetir.</div>') +
+  $("lista-series").innerHTML = dups.map((d) => `<div class="insight atencao"><p>"${esc(d.desc)}" está lançado duas vezes em ${d.n} ${d.n === 1 ? "data" : "datas"}, a partir de ${dataMedia(d.primeira)}.</p><p>Abra um lançamento que sobra e use Apagar este e os próximos.</p></div>`).join("") + (todas.length ? "" : '<div class="vazio">Nenhuma conta fixa ainda.<br>Ao lançar, escolha "Todo mês" em Repetir.</div>') +
     (podeSemFim && todas.length ? '<p class="nota">Ligue <b>Sempre</b> nas contas que não têm data para acabar: o app cria os próximos meses sozinho.</p>' : "") +
     (n ? `<button class="btn" type="button" data-estender-todas style="margin-bottom:10px">${IC.repetir} Repetir as ${n} que estão acabando</button>` : "") +
     todas.map((s) => `<div class="serie">
@@ -1403,6 +1435,7 @@ function abrirLanc(l, padrao = {}) {
   $("lanc-acoes").hidden = !l;
   $("lanc-de-novo").hidden = !l || !!l.caixinha_id;
   $("lanc-apagar-serie").hidden = !temSerie;
+  $("lanc-apagar").textContent = temSerie && l.recorrente && nProximos ? "Pular só este" : "Apagar";
   $("lanc-estender").hidden = !(temSerie && l.recorrente && !estado.seriesDb?.get(l.grupo)?.sem_fim);
   $("lanc-hist").hidden = !l;
   if (l) carregarHistoricoDe(l);
@@ -1484,6 +1517,13 @@ $("painel-lanc").addEventListener("submit", async (ev) => {
       } else {
         linhas = [{ ...base, data, pago: pagoPrimeiro }];
       }
+      // Mesma descrição no mesmo dia já lançada: avulso compara o valor também (duas compras no mercado no mesmo dia valem).
+      const dup = linhas.filter((x) => estado.lancs.some((y) => y.tipo === x.tipo && y.data === x.data && normalizar(y.descricao) === normalizar(x.descricao) && (rep !== "nao" || Number(y.valor) === x.valor)));
+      if (dup.length) {
+        const ok = await confirmar("Já está lançado?",
+          `"${descricao}" já existe ${dup.length === 1 ? `em ${dataMedia(dup[0].data)}` : `em ${dup.length} dessas datas, a primeira em ${dataMedia(dup[0].data)}`}. Lançando de novo, conta duas vezes.`, "Lançar mesmo assim");
+        if (!ok) return;
+      }
       const agora = new Date().toISOString();
       for (const x of linhas) Object.assign(x, { id: crypto.randomUUID(), recorrente: !!x.recorrente, parcela: x.parcela ?? null, parcelas: x.parcelas ?? null, grupo: x.grupo ?? null });
       // Sem internet: guarda no aparelho e envia depois (conta "sem data para acabar" precisa do banco na hora).
@@ -1540,7 +1580,8 @@ $("lanc-apagar").onclick = async () => {
   fecharPaineis();
   await despedir([l.id]);
   await carregar();
-  avisar(`Apagado: ${l.descricao}`, () => regravar(antes));
+  const pulou = l.grupo && l.recorrente && estado.lancs.some((x) => x.grupo === l.grupo && x.data > l.data);
+  avisar(pulou ? `Pulado ${dataMedia(l.data)}. ${l.descricao} continua nos próximos.` : `Apagado: ${l.descricao}`, () => regravar(antes));
 };
 
 $("lanc-apagar-serie").onclick = async () => {
@@ -2105,17 +2146,44 @@ $("painel-mov").addEventListener("submit", async (ev) => {
 
 // ---------- planejamento ----------
 
-// O que já está lançado mais as contas "Sempre" repetidas até a data pedida (o banco só gera alguns meses à frente).
+// Categorias que contam como gasto do dia a dia (o que não é conta fixa nem dívida).
+const CATS_DIA = new Set(["mercado", "transporte", "saude", "lazer", "outros", "assinaturas"]);
+
+// Média real do dia a dia nos últimos meses fechados: despesas avulsas (sem conta fixa nem parcela) dessas categorias.
+function mediaDiaADia() {
+  const mesAtual = hoje().slice(0, 7);
+  const primeiro = estado.lancs[0]?.data.slice(0, 7);
+  const meses = [1, 2, 3].map((n) => somarMeses(mesAtual + "-01", -n).slice(0, 7)).filter((m) => primeiro && m > primeiro);
+  if (!meses.length) return null;
+  const tot = estado.lancs.filter((l) => l.tipo === "despesa" && !l.grupo && !l.caixinha_id && meses.includes(l.data.slice(0, 7)) && CATS_DIA.has(categoriaDe(l)))
+    .reduce((s, l) => s + Number(l.valor), 0);
+  return { valor: r2(tot / meses.length), meses };
+}
+
+// O que já está lançado, as contas "Sempre" repetidas até a data pedida (o banco só gera alguns meses à frente),
+// o gasto do dia a dia estimado a partir do mês que vem e o salário que sobe quando um desconto do holerite acaba.
 function lancsProjetados(ate) {
   const extras = [];
   for (const s of series()) {
     if (!s.semFim) continue;
     const u = s.ultimo, dia = diaDaSerie(s.ls);
+    const desde = estado.seriesDb?.get(s.grupo)?.gerado_ate || u.data; // uma ocorrência pulada no fim não volta
     for (let i = 1; i < 1000; i++) {
       const data = s.semanal ? somarDias(u.data, 7 * i) : noDia(somarMeses(u.data, i), dia);
       if (data > ate) break;
-      extras.push({ ...u, id: null, data, pago: false });
+      if (data > desde) extras.push({ ...u, id: null, data, pago: false });
     }
+  }
+  const fim = ate.slice(0, 7);
+  const meses = (de) => { const out = []; for (let m = de; m <= fim; m = somarMeses(m + "-01", 1).slice(0, 7)) out.push(m); return out; };
+  if (estado.diaADia > 0) {
+    for (const m of meses(somarMeses(hoje().slice(0, 8) + "01", 1).slice(0, 7)))
+      extras.push({ id: null, data: m + "-15", descricao: "Dia a dia (estimativa)", tipo: "despesa", valor: estado.diaADia, categoria: "outros", virtual: true });
+  }
+  for (const d of estado.descontos || []) {
+    const depois = somarMeses(d.ate, 1).slice(0, 7), mesAtual = hoje().slice(0, 7);
+    for (const m of meses(depois > mesAtual ? depois : mesAtual))
+      extras.push({ id: null, data: m + "-05", descricao: `Fim de ${d.descricao}`, tipo: "receita", valor: Number(d.valor), categoria: "salario", virtual: true });
   }
   return [...estado.lancs, ...extras];
 }
@@ -2147,7 +2215,7 @@ function planoMeses(lista, ini, fim, conta = () => true) {
 function contasQueAcabam(lista, ini, fim) {
   const grupos = new Map(), ultimaDesc = new Map();
   for (const l of lista) {
-    if (l.caixinha_id) continue;
+    if (l.caixinha_id || l.virtual) continue;
     const chave = l.tipo + "|" + normalizar(l.descricao);
     if ((ultimaDesc.get(chave) || "") < l.data) ultimaDesc.set(chave, l.data);
     if (!l.grupo) continue;
@@ -2163,13 +2231,34 @@ function contasQueAcabam(lista, ini, fim) {
     const meses = new Set(ls.map((l) => l.data.slice(0, 7))).size;
     out.push({ desc: u.descricao, tipo: u.tipo, cat: categoriaDe(u), ultimo: u.data, porMes: r2(ls.reduce((s, l) => s + Number(l.valor), 0) / meses) });
   }
+  for (const d of estado.descontos || []) {
+    if (d.ate.slice(0, 7) >= ini && d.ate.slice(0, 7) < fim)
+      out.push({ desc: `${d.descricao} (holerite)`, tipo: "despesa", cat: "dividas", ultimo: d.ate, porMes: Number(d.valor) });
+  }
   return out.sort((a, b) => a.ultimo.localeCompare(b.ultimo));
 }
+
+// Coisas que aparecem uma ou duas vezes num ano (13º, férias, material escolar) e somem no ano seguinte.
+function anuaisFaltando(lista, ano) {
+  const chave = (l) => l.tipo + "|" + normalizar(l.descricao);
+  const doAno = (a) => lista.filter((l) => l.data.startsWith(String(a)) && !l.caixinha_id && !l.virtual);
+  const depois = new Set(doAno(ano + 1).map(chave));
+  const vistos = new Map();
+  for (const l of doAno(ano)) {
+    if (l.recorrente || l.parcelas || Number(l.valor) <= 0) continue;
+    const k = chave(l);
+    if (!vistos.has(k)) vistos.set(k, { l, meses: new Set() });
+    vistos.get(k).meses.add(l.data.slice(5, 7));
+  }
+  return [...vistos.entries()].filter(([k, x]) => x.meses.size <= 2 && !depois.has(k)).map(([, x]) => x.l);
+}
+
+let planoAte = null; // mês escolhido para a margem
 
 function abrirPlano() { renderPlano(); abrirPainel($("painel-plano")); }
 
 function renderPlano() {
-  const ini = hoje().slice(0, 7), anoFim = Number(ini.slice(0, 4)) + 2, fim = `${anoFim}-12`;
+  const ini = hoje().slice(0, 7), anoIni = Number(ini.slice(0, 4)), anoFim = anoIni + 2, fim = `${anoFim}-12`;
   const lista = lancsProjetados(fimDoMes(fim));
   const meses = planoMeses(lista, ini, fim);
   const semExtra = planoMeses(lista, ini, fim, (l) => l.tipo !== "receita" || l.caixinha_id || categoriaDe(l) !== "extra");
@@ -2177,18 +2266,61 @@ function renderPlano() {
   const cor = (v) => `<b class="num" style="color:var(${v >= 0 ? "--verde" : "--vermelho"})">${v < 0 ? "−" : ""}${brl.format(Math.abs(v))}</b>`;
   const nome = (m) => mesCurto(m + "-01");
   const pct = (a, base) => (base > 0 ? Math.round((a / base) * 100) : 0);
+  if (!planoAte || planoAte < ini || planoAte > fim) planoAte = somarMeses(ini + "-01", 6).slice(0, 7);
 
   const pior = meses.reduce((p, x) => (x.saldo < p.saldo ? x : p), meses[0]);
   const negativos = meses.filter((x) => x.saldo < 0);
   const fins = meses.filter((x) => x.mes.endsWith("-12"));
+  const dia = estado.diaADia > 0;
   const frases = [
     pior.saldo < 0
       ? `O ponto mais apertado é ${nome(pior.mes)}: a conta fica em ${cor(pior.saldo)}.`
       : `A conta não fica negativa em nenhum mês. O ponto mais baixo é ${nome(pior.mes)}, com ${cor(pior.saldo)}.`,
     `A conta termina ${fins.map((x) => `${nome(x.mes)} com ${cor(x.saldo)}`).join(", ")}.`,
     negativos.length ? `Em ${negativos.length} ${negativos.length === 1 ? "mês" : "meses"} o saldo fica abaixo de zero.` : "",
-    `<span class="nota">Conta tudo o que já está lançado, com ou sem check, e repete as contas marcadas como Sempre até ${nome(fim)}. O que ainda não foi lançado não aparece aqui.</span>`,
+    `<span class="nota">Conta tudo o que já está lançado, com ou sem check, e repete as contas marcadas como Sempre até ${nome(fim)}. ${dia ? `Desconta ${brl.format(estado.diaADia)} por mês de dia a dia a partir do mês que vem.` : "Ainda não desconta nada de dia a dia: defina um valor em Ajustes da projeção."}</span>`,
   ].filter(Boolean);
+
+  // Margem: quanto dá para gastar além do lançado sem a conta ficar negativa até o mês escolhido.
+  const ate = meses.filter((x) => x.mes <= planoAte);
+  const aperto = ate.reduce((p, x) => (x.saldo < p.saldo ? x : p), ate[0]);
+  const opcoes = meses.map((x) => `<option value="${x.mes}" ${x.mes === planoAte ? "selected" : ""}>${nome(x.mes)}</option>`).join("");
+  const margemHtml = `<div class="insight ${aperto.saldo < 0 ? "ruim" : aperto.saldo < 1000 ? "atencao" : "bom"} margem">
+      <p>Até <select id="plano-ate" aria-label="Até qual mês">${opcoes}</select>${aperto.saldo >= 0
+        ? `, dá para gastar até ${b(aperto.saldo)} além do que está lançado sem a conta ficar negativa.`
+        : `, faltam ${b(-aperto.saldo)}: em ${nome(aperto.mes)} a conta fica negativa.`}</p>
+      <p>O mês mais apertado nesse período é ${nome(aperto.mes)}.${dia ? "" : " Sem estimativa de dia a dia, esse valor também precisa cobrir o dia a dia."}</p>
+    </div>`;
+
+  // Ajustes que entram só na projeção.
+  const med = mediaDiaADia();
+  const descontos = estado.descontos || [];
+  const ativos = descontos.filter((d) => d.ate.slice(0, 7) >= ini);
+  const ajustesHtml = `
+    <label class="limite">
+      <span class="cat-ic">${catInfo("despesa", "outros").icone}</span>
+      <span class="limite-txt"><span>Gasto do dia a dia por mês</span><small class="num">${med
+        ? `média real ${brl.format(med.valor)} (${med.meses.map((m) => nome(m)).reverse().join(", ")})`
+        : "a média real aparece quando fechar o primeiro mês"}</small></span>
+      <input class="num" inputmode="decimal" id="plano-dia" placeholder="0,00" value="${dia ? mostrarValor(estado.diaADia) : ""}" aria-label="Gasto do dia a dia por mês">
+    </label>
+    ${med && med.valor !== estado.diaADia ? `<button class="link" type="button" data-usar-media="${med.valor}">Usar a média real (${brl.format(med.valor)})</button>` : ""}
+    <p class="nota">Mercado extra, farmácia, lazer, presentes: o que vocês lançam à mão. Entra só aqui, não vira lançamento.</p>
+    ${estado.descontos ? `
+    <h3 class="sub">Descontos no holerite</h3>
+    ${descontos.length ? `<div class="lista lista-plana">${descontos.map((d) => `<div class="linha-simples">
+        <span class="cat-ic">${catInfo("despesa", "dividas").icone}</span>
+        <span class="desc cx-ano">${esc(d.descricao)}<span class="quando num">${d.ate.slice(0, 7) < ini ? "acabou" : "último"} em ${mesCurto(d.ate)}</span></span>
+        <b class="num">${brl.format(Number(d.valor))}/mês</b>
+        <button class="icone" type="button" data-apagar-desconto="${d.id}" aria-label="Tirar ${esc(d.descricao)}"><svg class="ic" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
+      </div>`).join("")}</div>` : ""}
+    <form class="desconto-novo" id="plano-desconto" novalidate>
+      <input id="desc-nome" placeholder="Ex.: Consignado Itaú" autocomplete="off" aria-label="Descrição do desconto">
+      <input id="desc-valor" class="num" inputmode="decimal" placeholder="Valor/mês" autocomplete="off" aria-label="Valor por mês">
+      <input id="desc-ate" type="month" min="${ini}" aria-label="Mês do último desconto">
+      <button class="btn sec" type="submit">Incluir</button>
+    </form>
+    <p class="nota">Empréstimos que saem do salário antes de cair na conta. Informe o mês do último desconto: a partir do mês seguinte a projeção soma esse valor ao salário.${ativos.length ? ` Hoje saem ${brl.format(ativos.reduce((s, d) => s + Number(d.valor), 0))} por mês.` : ""}</p>` : ""}`;
 
   // Pontos de atenção.
   const ins = [];
@@ -2200,17 +2332,33 @@ function renderPlano() {
       `Sem ela, a conta terminaria ${nome(fim)} em ${cor(fimSem)}${piorSem.saldo < 0 ? ` e ficaria negativa a partir de ${nome(semExtra.find((x) => x.saldo < 0).mes)}` : ""}.`,
     ] });
   }
-  const prox12 = lista.filter((l) => l.tipo === "despesa" && !l.caixinha_id && l.data.slice(0, 7) >= ini && l.data.slice(0, 7) < somarMeses(ini + "-01", 12).slice(0, 7));
-  const div12 = prox12.filter((l) => categoriaDe(l) === "dividas").reduce((s, l) => s + Number(l.valor), 0);
-  const ent12 = meses.slice(0, 12).reduce((s, x) => s + x.ent, 0);
+  const fim12 = somarMeses(ini + "-01", 12).slice(0, 7);
+  const prox12 = lista.filter((l) => l.tipo === "despesa" && !l.caixinha_id && l.data.slice(0, 7) >= ini && l.data.slice(0, 7) < fim12);
+  // Descontos do holerite não passam pela conta: entram aqui só para mostrar o peso real das dívidas.
+  const mesesDe = (d) => Math.min(12, Math.max(0, (Number(d.ate.slice(0, 4)) - anoIni) * 12 + Number(d.ate.slice(5, 7)) - Number(ini.slice(5, 7)) + 1));
+  const folha12 = ativos.reduce((s, d) => s + Number(d.valor) * mesesDe(d), 0);
+  const div12 = prox12.filter((l) => categoriaDe(l) === "dividas").reduce((s, l) => s + Number(l.valor), 0) + folha12;
+  const ent12 = meses.slice(0, 12).reduce((s, x) => s + x.ent, 0) + folha12;
   const acabam = contasQueAcabam(lista, ini, fim);
   if (div12 > 0) {
     const fimDiv = acabam.filter((a) => a.cat === "dividas");
     ins.push({ tom: pct(div12, ent12) >= 30 ? "ruim" : "atencao", linhas: [
-      `Nos próximos 12 meses, ${b(div12 / 12)} por mês vão para empréstimos e cartões, ${pct(div12, ent12)}% do que entra.`,
+      `Nos próximos 12 meses, ${b(div12 / 12)} por mês vão para empréstimos e cartões, ${pct(div12, ent12)}% do que entra${folha12 ? ", contando os descontos do holerite" : ""}.`,
       fimDiv.length ? `${fimDiv.length === 1 ? "Uma acaba" : `${fimDiv.length} acabam`} até ${nome(fim)}: ${fimDiv.map((a) => `${esc(a.desc)} em ${mesCurto(a.ultimo)}`).join(", ")}. Evitar dívida nova até lá é o que mais ajuda.` : "Nenhuma delas acaba no período lançado.",
     ] });
   }
+  if (anoFim > anoIni + 1) {
+    const faltam = anuaisFaltando(lista, anoIni + 1);
+    if (faltam.length) ins.push({ tom: "info", linhas: [
+      `Em ${anoIni + 1} tem ${faltam.map((l) => `${esc(l.descricao)} (${brl.format(Number(l.valor))})`).join(", ")}, mas em ${anoIni + 2} não.`,
+      `Se ${faltam.length === 1 ? "isso se repete" : "essas coisas se repetem"} todo ano, lance em ${anoIni + 2} para a conta ficar certa.`,
+    ] });
+  }
+  const dups = seriesDuplicadas(series());
+  if (dups.length) ins.unshift({ tom: "ruim", linhas: [
+    `Tem coisa lançada duas vezes: ${dups.map((d) => `${esc(d.desc)} (${d.n} ${d.n === 1 ? "data" : "datas"})`).join(", ")}.`,
+    "Os números acima estão contando em dobro. Veja em Contas fixas qual sobra e apague.",
+  ] });
   const anoMeio = meses.filter((x) => x.mes.startsWith(String(anoFim)));
   const sobraMedia = anoMeio.reduce((s, x) => s + x.sobra, 0) / Math.max(anoMeio.length, 1);
   ins.push({ tom: sobraMedia > 0 ? "bom" : "ruim", linhas: [
@@ -2242,13 +2390,73 @@ function renderPlano() {
 
   $("plano-corpo").innerHTML = `
     <div class="frases">${frases.map((f) => `<p>${f}</p>`).join("")}</div>
+    ${margemHtml}
     <h3 class="sub">Pontos de atenção</h3>
     ${ins.map((a) => `<div class="insight ${a.tom}">${a.linhas.map((l) => `<p>${l}</p>`).join("")}</div>`).join("")}
     <h3 class="sub">O que muda quando as contas acabam</h3>
     ${mudaHtml}
+    <h3 class="sub">Ajustes da projeção</h3>
+    ${ajustesHtml}
     ${anosHtml}
     <p class="nota">O valor de cada mês é o saldo da conta no fim do mês.</p>`;
 }
+
+// Redesenha sem pular para o topo.
+function redesenharPlano() { const topo = $("painel-plano").scrollTop; renderPlano(); $("painel-plano").scrollTop = topo; }
+
+async function salvarDiaADia(valor) {
+  const r = await sb.from("planejamento").upsert({ casa_id: estado.casa.id, dia_a_dia: valor || null, atualizado_em: new Date().toISOString() });
+  if (r.error) { avisar(msgErro(r.error)); return; }
+  estado.diaADia = valor || null;
+  gravarCache();
+  redesenharPlano();
+  avisar(valor ? `A projeção agora desconta ${brl.format(valor)} por mês de dia a dia.` : "A projeção não desconta mais o dia a dia.");
+}
+
+$("painel-plano").addEventListener("change", async (e) => {
+  if (e.target.id === "plano-ate") { planoAte = e.target.value; redesenharPlano(); return; }
+  if (e.target.id !== "plano-dia") return;
+  const txt = e.target.value.trim(), valor = txt ? lerValor(txt) : 0;
+  if (txt && !Number.isFinite(valor)) { avisar("Digite um valor, por exemplo 600 ou 750,00."); return; }
+  if ((valor || null) === (estado.diaADia || null)) return;
+  await salvarDiaADia(valor);
+});
+
+$("painel-plano").addEventListener("click", async (e) => {
+  const usar = e.target.closest("[data-usar-media]");
+  if (usar) { await salvarDiaADia(Number(usar.dataset.usarMedia)); return; }
+  const tirar = e.target.closest("[data-apagar-desconto]");
+  if (!tirar) return;
+  const d = estado.descontos.find((x) => x.id === tirar.dataset.apagarDesconto);
+  const r = await sb.from("descontos_folha").delete().eq("id", d.id);
+  if (r.error) { avisar(msgErro(r.error)); return; }
+  estado.descontos = estado.descontos.filter((x) => x.id !== d.id);
+  gravarCache();
+  redesenharPlano();
+  avisar(`Tirado: ${d.descricao}`, async () => {
+    const v = await sb.from("descontos_folha").insert(d);
+    if (v.error) throw v.error;
+    estado.descontos = [...estado.descontos, d].sort((a, b) => a.ate.localeCompare(b.ate));
+    gravarCache();
+    if (!$("painel-plano").hidden) redesenharPlano();
+  });
+});
+
+$("painel-plano").addEventListener("submit", async (e) => {
+  if (e.target.id !== "plano-desconto") return;
+  e.preventDefault();
+  const descricao = $("desc-nome").value.trim().replace(/\s+/g, " "), valor = lerValor($("desc-valor").value), ate = $("desc-ate").value;
+  if (!descricao) return avisar("Escreva o nome do desconto, por exemplo Consignado Itaú.");
+  if (!(valor > 0)) return avisar("Digite o valor por mês, por exemplo 1.333,30.");
+  if (!/^\d{4}-\d{2}$/.test(ate)) return avisar("Escolha o mês do último desconto.");
+  const linha = { id: crypto.randomUUID(), casa_id: estado.casa.id, descricao, valor, ate: ate + "-01" };
+  const r = await sb.from("descontos_folha").insert(linha);
+  if (r.error) { avisar(msgErro(r.error)); return; }
+  estado.descontos = [...(estado.descontos || []), linha].sort((a, b) => a.ate.localeCompare(b.ate));
+  gravarCache();
+  redesenharPlano();
+  avisar(`${descricao}: a partir de ${mesCurto(somarMeses(linha.ate, 1))} o salário sobe ${brl.format(valor)}.`);
+});
 
 // ---------- visão do ano ----------
 
