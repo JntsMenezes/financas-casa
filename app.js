@@ -891,6 +891,7 @@ function render() {
         ? `Caixinhas<small class="num">${brl.format(totalGuardado())}</small>`
         : "Guardar dinheiro<small>caixinhas</small>"}</span>${IC.ir}</button>` : ""}
       ${estado.lancs.length ? `<button class="linha-resumo" data-abrir-ano>${svg('<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>')}<span>Como estamos<small>${mes.slice(0, 4)}</small></span>${IC.ir}</button>` : ""}
+      ${estado.lancs.length ? `<button class="linha-resumo" data-abrir-plano>${svg('<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>')}<span>Planejamento<small>até ${Number(hoje().slice(0, 4)) + 2}</small></span>${IC.ir}</button>` : ""}
       </nav>
     </section>
     <section class="col-extrato">
@@ -1017,6 +1018,7 @@ $("conteudo").addEventListener("click", async (ev) => {
   if (t("[data-conferir]")) { abrirConferir(); return; }
   if (t("[data-check-hoje]")) { await checkEmTudoDeHoje(); return; }
   if (t("[data-abrir-ano]")) { abrirAno(Number(estado.mes.slice(0, 4))); return; }
+  if (t("[data-abrir-plano]")) { abrirPlano(); return; }
   if (t("[data-enviar-fila]")) {
     if (!navigator.onLine) { avisar("Ainda sem internet. Assim que conectar, o app envia sozinho."); return; }
     await enviarFila();
@@ -1137,7 +1139,7 @@ window.addEventListener("scroll", () => {
 
 // ---------- painéis ----------
 
-const PAINEIS = ["painel-conferir", "painel-lanc", "painel-ajustes", "painel-historico", "painel-series", "painel-resumo", "painel-busca", "painel-limites", "painel-caixinhas", "painel-caixa", "painel-mov", "painel-ano"];
+const PAINEIS = ["painel-conferir", "painel-lanc", "painel-ajustes", "painel-historico", "painel-series", "painel-resumo", "painel-busca", "painel-limites", "painel-caixinhas", "painel-caixa", "painel-mov", "painel-ano", "painel-plano"];
 function abrirPainel(p) {
   fecharPaineis(true);
   $("fundo").hidden = false;
@@ -2100,6 +2102,153 @@ $("painel-mov").addEventListener("submit", async (ev) => {
     btn.disabled = false;
   }
 });
+
+// ---------- planejamento ----------
+
+// O que já está lançado mais as contas "Sempre" repetidas até a data pedida (o banco só gera alguns meses à frente).
+function lancsProjetados(ate) {
+  const extras = [];
+  for (const s of series()) {
+    if (!s.semFim) continue;
+    const u = s.ultimo, dia = diaDaSerie(s.ls);
+    for (let i = 1; i < 1000; i++) {
+      const data = s.semanal ? somarDias(u.data, 7 * i) : noDia(somarMeses(u.data, i), dia);
+      if (data > ate) break;
+      extras.push({ ...u, id: null, data, pago: false });
+    }
+  }
+  return [...estado.lancs, ...extras];
+}
+
+// Mês a mês de ini a fim (AAAA-MM), com o saldo da conta no fim de cada mês.
+function planoMeses(lista, ini, fim, conta = () => true) {
+  const porMes = new Map();
+  let saldo = 0;
+  for (const l of lista) {
+    if (!conta(l)) continue;
+    const m = l.data.slice(0, 7);
+    if (m < ini) { saldo += sinal(l); continue; }
+    if (m > fim) continue;
+    if (!porMes.has(m)) porMes.set(m, { ent: 0, sai: 0, extra: 0 });
+    const x = porMes.get(m), v = Number(l.valor);
+    if (l.tipo === "receita") { x.ent += v; if (!l.caixinha_id && categoriaDe(l) === "extra") x.extra += v; }
+    else x.sai += v;
+  }
+  const out = [];
+  for (let m = ini; m <= fim; m = somarMeses(m + "-01", 1).slice(0, 7)) {
+    const x = porMes.get(m) || { ent: 0, sai: 0, extra: 0 };
+    saldo += x.ent - x.sai;
+    out.push({ mes: m, ent: r2(x.ent), sai: r2(x.sai), extra: r2(x.extra), sobra: r2(x.ent - x.sai), saldo: r2(saldo) });
+  }
+  return out;
+}
+
+// Contas que acabam dentro do período e não voltam com outro lançamento igual mais à frente.
+function contasQueAcabam(lista, ini, fim) {
+  const grupos = new Map(), ultimaDesc = new Map();
+  for (const l of lista) {
+    if (l.caixinha_id) continue;
+    const chave = l.tipo + "|" + normalizar(l.descricao);
+    if ((ultimaDesc.get(chave) || "") < l.data) ultimaDesc.set(chave, l.data);
+    if (!l.grupo) continue;
+    if (!grupos.has(l.grupo)) grupos.set(l.grupo, []);
+    grupos.get(l.grupo).push(l);
+  }
+  const out = [];
+  for (const [grupo, ls] of grupos) {
+    if (ls.length < 2 || estado.seriesDb?.get(grupo)?.sem_fim) continue;
+    ls.sort((a, b) => a.data.localeCompare(b.data));
+    const u = ls[ls.length - 1], m = u.data.slice(0, 7);
+    if (m < ini || m >= fim || ultimaDesc.get(u.tipo + "|" + normalizar(u.descricao)) > u.data) continue;
+    const meses = new Set(ls.map((l) => l.data.slice(0, 7))).size;
+    out.push({ desc: u.descricao, tipo: u.tipo, cat: categoriaDe(u), ultimo: u.data, porMes: r2(ls.reduce((s, l) => s + Number(l.valor), 0) / meses) });
+  }
+  return out.sort((a, b) => a.ultimo.localeCompare(b.ultimo));
+}
+
+function abrirPlano() { renderPlano(); abrirPainel($("painel-plano")); }
+
+function renderPlano() {
+  const ini = hoje().slice(0, 7), anoFim = Number(ini.slice(0, 4)) + 2, fim = `${anoFim}-12`;
+  const lista = lancsProjetados(fimDoMes(fim));
+  const meses = planoMeses(lista, ini, fim);
+  const semExtra = planoMeses(lista, ini, fim, (l) => l.tipo !== "receita" || l.caixinha_id || categoriaDe(l) !== "extra");
+  const b = (v) => `<b class="num">${brl.format(v)}</b>`;
+  const cor = (v) => `<b class="num" style="color:var(${v >= 0 ? "--verde" : "--vermelho"})">${v < 0 ? "−" : ""}${brl.format(Math.abs(v))}</b>`;
+  const nome = (m) => mesCurto(m + "-01");
+  const pct = (a, base) => (base > 0 ? Math.round((a / base) * 100) : 0);
+
+  const pior = meses.reduce((p, x) => (x.saldo < p.saldo ? x : p), meses[0]);
+  const negativos = meses.filter((x) => x.saldo < 0);
+  const fins = meses.filter((x) => x.mes.endsWith("-12"));
+  const frases = [
+    pior.saldo < 0
+      ? `O ponto mais apertado é ${nome(pior.mes)}: a conta fica em ${cor(pior.saldo)}.`
+      : `A conta não fica negativa em nenhum mês. O ponto mais baixo é ${nome(pior.mes)}, com ${cor(pior.saldo)}.`,
+    `A conta termina ${fins.map((x) => `${nome(x.mes)} com ${cor(x.saldo)}`).join(", ")}.`,
+    negativos.length ? `Em ${negativos.length} ${negativos.length === 1 ? "mês" : "meses"} o saldo fica abaixo de zero.` : "",
+    `<span class="nota">Conta tudo o que já está lançado, com ou sem check, e repete as contas marcadas como Sempre até ${nome(fim)}. O que ainda não foi lançado não aparece aqui.</span>`,
+  ].filter(Boolean);
+
+  // Pontos de atenção.
+  const ins = [];
+  const tot = meses.reduce((a, x) => ({ ent: a.ent + x.ent, extra: a.extra + x.extra }), { ent: 0, extra: 0 });
+  if (tot.extra > 0) {
+    const fimSem = semExtra[semExtra.length - 1].saldo, piorSem = semExtra.reduce((p, x) => (x.saldo < p.saldo ? x : p), semExtra[0]);
+    ins.push({ tom: fimSem < 0 ? "ruim" : "atencao", linhas: [
+      `A renda extra soma ${b(tot.extra)} até ${nome(fim)}, ${pct(tot.extra, tot.ent)}% de tudo o que entra.`,
+      `Sem ela, a conta terminaria ${nome(fim)} em ${cor(fimSem)}${piorSem.saldo < 0 ? ` e ficaria negativa a partir de ${nome(semExtra.find((x) => x.saldo < 0).mes)}` : ""}.`,
+    ] });
+  }
+  const prox12 = lista.filter((l) => l.tipo === "despesa" && !l.caixinha_id && l.data.slice(0, 7) >= ini && l.data.slice(0, 7) < somarMeses(ini + "-01", 12).slice(0, 7));
+  const div12 = prox12.filter((l) => categoriaDe(l) === "dividas").reduce((s, l) => s + Number(l.valor), 0);
+  const ent12 = meses.slice(0, 12).reduce((s, x) => s + x.ent, 0);
+  const acabam = contasQueAcabam(lista, ini, fim);
+  if (div12 > 0) {
+    const fimDiv = acabam.filter((a) => a.cat === "dividas");
+    ins.push({ tom: pct(div12, ent12) >= 30 ? "ruim" : "atencao", linhas: [
+      `Nos próximos 12 meses, ${b(div12 / 12)} por mês vão para empréstimos e cartões, ${pct(div12, ent12)}% do que entra.`,
+      fimDiv.length ? `${fimDiv.length === 1 ? "Uma acaba" : `${fimDiv.length} acabam`} até ${nome(fim)}: ${fimDiv.map((a) => `${esc(a.desc)} em ${mesCurto(a.ultimo)}`).join(", ")}. Evitar dívida nova até lá é o que mais ajuda.` : "Nenhuma delas acaba no período lançado.",
+    ] });
+  }
+  const anoMeio = meses.filter((x) => x.mes.startsWith(String(anoFim)));
+  const sobraMedia = anoMeio.reduce((s, x) => s + x.sobra, 0) / Math.max(anoMeio.length, 1);
+  ins.push({ tom: sobraMedia > 0 ? "bom" : "ruim", linhas: [
+    `Em ${anoFim}, ${sobraMedia >= 0 ? "sobram" : "faltam"} em média ${b(Math.abs(sobraMedia))} por mês.`,
+    sobraMedia > 0 ? `Guardando essa sobra, seriam ${b(sobraMedia * 12)} no ano.` : "Para virar, é preciso cortar gasto ou aumentar a renda antes disso.",
+  ] });
+
+  const mudaHtml = acabam.length
+    ? `<div class="lista lista-plana">${acabam.map((a) => `<div class="linha-simples">
+        <span class="cat-ic">${catInfo(a.tipo, a.cat).icone}</span>
+        <span class="desc cx-ano">${esc(a.desc)}<span class="quando num">última em ${mesCurto(a.ultimo)}</span></span>
+        <b class="num" style="color:var(${a.tipo === "despesa" ? "--verde" : "--vermelho"})">${a.tipo === "despesa" ? "+" : "−"}${brl.format(a.porMes)}/mês</b></div>`).join("")}</div>
+      <p class="nota">Verde: sobra a mais por mês quando a conta acaba. Vermelho: entra a menos. Se alguma continua, ligue Sempre nela em Contas fixas.</p>`
+    : '<div class="nota">Nenhuma conta lançada acaba no período.</div>';
+
+  const maxAbs = Math.max(...meses.map((x) => Math.abs(x.saldo)), 1);
+  const anos = [...new Set(meses.map((x) => x.mes.slice(0, 4)))];
+  const anosHtml = anos.map((a) => {
+    const ms = meses.filter((x) => x.mes.startsWith(a));
+    const t = ms.reduce((s, x) => ({ ent: s.ent + x.ent, sai: s.sai + x.sai }), { ent: 0, sai: 0 });
+    return `<h3 class="sub">${a}${ms.length < 12 ? ` <small>de ${nome(ms[0].mes)} a dez</small>` : ""}</h3>
+      <p class="nota num">Entram ${brl.format(t.ent)} · saem ${brl.format(t.sai)} · ${t.ent >= t.sai ? "sobram" : "faltam"} ${brl.format(Math.abs(t.ent - t.sai))}</p>
+      ${ms.map((x) => `<div class="mes-linha ${x.mes > ini ? "futuro" : ""}">
+        <div class="barra-topo"><span>${nomeDoMes(x.mes + "-01")}${x.extra ? ` <small>${brl.format(x.extra)} de extra</small>` : ""}</span>${cor(x.saldo)}</div>
+        <div class="trilho"><span class="enche" style="width:${((Math.abs(x.saldo) / maxAbs) * 100).toFixed(1)}%${x.saldo < 0 ? ";background:var(--vermelho)" : ""}"></span></div>
+        <div class="barra-rodape num"><span>entra ${brl.format(x.ent)} · sai ${brl.format(x.sai)}</span><span>${x.sobra >= 0 ? "sobra" : "falta"} ${brl.format(Math.abs(x.sobra))}</span></div>
+      </div>`).join("")}`;
+  }).join("");
+
+  $("plano-corpo").innerHTML = `
+    <div class="frases">${frases.map((f) => `<p>${f}</p>`).join("")}</div>
+    <h3 class="sub">Pontos de atenção</h3>
+    ${ins.map((a) => `<div class="insight ${a.tom}">${a.linhas.map((l) => `<p>${l}</p>`).join("")}</div>`).join("")}
+    <h3 class="sub">O que muda quando as contas acabam</h3>
+    ${mudaHtml}
+    ${anosHtml}
+    <p class="nota">O valor de cada mês é o saldo da conta no fim do mês.</p>`;
+}
 
 // ---------- visão do ano ----------
 
