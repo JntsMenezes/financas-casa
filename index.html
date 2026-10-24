@@ -397,6 +397,7 @@
   .seg button.ativo[data-tipo="despesa"] { background: var(--card); color: var(--vermelho); box-shadow: var(--sombra); }
   .seg button.ativo[data-tipo="receita"] { background: var(--card); color: var(--verde); box-shadow: var(--sombra); }
   .seg.tres { grid-template-columns: repeat(3, 1fr); }
+  .seg button.ativo[data-escopo] { background: var(--card); color: var(--ink); box-shadow: var(--sombra); }
   .seg button.ativo[data-tema] { background: var(--card); color: var(--ink); box-shadow: var(--sombra); }
   .valor-grande input { font-size: 30px; font-weight: 650; letter-spacing: -.02em; padding: 10px 14px; }
   .duas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -729,7 +730,13 @@
     <div class="previa" id="lanc-previa" hidden></div>
   </div>
 
-  <label class="toggle" id="bloco-serie" hidden><span>Mudar também os próximos da série</span><input type="checkbox" id="lanc-serie"></label>
+  <div id="bloco-serie" hidden>
+    <div class="campo"><span>Aplicar a mudança em</span></div>
+    <div class="seg" id="seg-serie" role="group" aria-label="Aplicar a mudança em">
+      <button type="button" data-escopo="este">Só este</button>
+      <button type="button" data-escopo="proximos" id="serie-proximos">Este e os próximos</button>
+    </div>
+  </div>
 
   <div class="lanc-rodape">
     <div class="erro" id="lanc-erro" role="alert"></div>

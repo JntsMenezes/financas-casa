@@ -124,6 +124,19 @@ function somarMeses(s, n) {
   alvo.setDate(Math.min(d, ultimo));
   return iso(alvo);
 }
+// Põe a data no dia pedido; se o mês não tem esse dia, no último dia do mês.
+function noDia(s, dia) {
+  const ultimo = Number(fimDoMes(s.slice(0, 7)).slice(8));
+  return s.slice(0, 8) + String(Math.min(dia, ultimo)).padStart(2, "0");
+}
+// Dia da conta fixa: o mais comum nos últimos meses de 31 dias (num mês curto o 31 vira 30 ou 28 e não serve).
+function diaDaSerie(ls) {
+  const longos = ls.filter((l) => fimDoMes(l.data.slice(0, 7)).endsWith("31")).slice(-4);
+  const base = (longos.length ? longos : ls.slice(-1)).map((l) => Number(l.data.slice(8))).reverse();
+  const conta = new Map();
+  for (const d of base) conta.set(d, (conta.get(d) || 0) + 1);
+  return base.reduce((m, d) => (conta.get(d) > conta.get(m) ? d : m), base[0]);
+}
 function somarDias(s, n) { const d = deIso(s); d.setDate(d.getDate() + n); return iso(d); }
 function fimDoMes(mes) { const [a, m] = mes.split("-").map(Number); return iso(new Date(a, m, 0)); }
 function dataCurta(s) { return s.slice(8, 10) + "/" + s.slice(5, 7); }
@@ -510,10 +523,10 @@ async function definirSemFim(s, ligar) {
 }
 
 function proximasDaSerie(s, n = 12) {
-  const u = s.ultimo;
+  const u = s.ultimo, dia = diaDaSerie(s.ls);
   return Array.from({ length: n }, (_, i) => ({
     id: crypto.randomUUID(), casa_id: estado.casa.id, descricao: u.descricao, tipo: u.tipo, valor: u.valor,
-    data: s.semanal ? somarDias(u.data, 7 * (i + 1)) : somarMeses(u.data, i + 1),
+    data: s.semanal ? somarDias(u.data, 7 * (i + 1)) : noDia(somarMeses(u.data, i + 1), dia),
     pago: false, recorrente: true, grupo: s.grupo,
     ...(estado.temCategoria ? { categoria: categoriaDe(u) } : {}),
   }));
@@ -1247,6 +1260,11 @@ $("lanc-cats").onclick = (e) => {
   abrirCats(false);
 };
 $("lanc-desc").addEventListener("input", adivinharNoForm);
+function escopoSerie(e) {
+  estado.escopoSerie = e;
+  for (const b of $("seg-serie").children) b.classList.toggle("ativo", b.dataset.escopo === e);
+}
+$("seg-serie").onclick = (e) => { const b = e.target.closest("[data-escopo]"); if (b) escopoSerie(b.dataset.escopo); };
 $("lanc-tipo").onclick = (e) => { const b = e.target.closest("[data-tipo]"); if (b) definirTipo(b.dataset.tipo); };
 
 function atualizarPrevia() {
@@ -1344,8 +1362,10 @@ function abrirLanc(l, padrao = {}) {
   $("lanc-parcs").value = 2;
   atualizarPrevia();
   const temSerie = !!(l && l.grupo);
-  $("bloco-serie").hidden = !temSerie;
-  $("lanc-serie").checked = false;
+  const nProximos = temSerie ? estado.lancs.filter((x) => x.grupo === l.grupo && x.data > l.data).length : 0;
+  $("bloco-serie").hidden = !nProximos;
+  $("serie-proximos").textContent = nProximos === 1 ? "Este e o próximo" : `Este e os ${nProximos} próximos`;
+  escopoSerie(nProximos ? "proximos" : "este");
   $("lanc-acoes").hidden = !l;
   $("lanc-de-novo").hidden = !l || !!l.caixinha_id;
   $("lanc-apagar-serie").hidden = !temSerie;
@@ -1374,14 +1394,34 @@ $("painel-lanc").addEventListener("submit", async (ev) => {
     const cat = estado.temCategoria ? { categoria: estado.categoriaSel || adivinharCategoria(descricao, tipoSel) } : {};
     if (l) {
       const campos = { descricao, tipo: tipoSel, valor, ...cat };
-      const naSerie = l.grupo && $("lanc-serie").checked;
-      const antes = estado.lancs.filter((x) => x.id === l.id || (naSerie && x.grupo === l.grupo && x.data > l.data)).map((x) => ({ ...x }));
+      const naSerie = l.grupo && estado.escopoSerie === "proximos";
+      // Nos próximos vai só o que mudou: um check aqui não pode apagar um valor diferente posto num mês adiante.
+      const mudou = Object.fromEntries(Object.entries(campos).filter(([k, v]) => (k === "valor" ? Number(l.valor) !== v : (l[k] ?? null) !== (v ?? null))));
+      const temMudanca = Object.keys(mudou).length || data !== l.data;
+      const proximos = naSerie && temMudanca ? estado.lancs.filter((x) => x.grupo === l.grupo && x.data > l.data) : [];
+      const antes = [l, ...proximos].map((x) => ({ ...x }));
       let r = await sb.from("lancamentos").update({ ...campos, data, pago: $("lanc-pago").checked }).eq("id", l.id).select("id");
       if (r.error) throw r.error;
       if (!r.data.length) { await carregar(); throw new Error("Esse lançamento foi apagado em outro celular."); }
-      if (naSerie) {
-        r = await sb.from("lancamentos").update(campos).eq("grupo", l.grupo).gt("data", l.data);
+      if (proximos.length && data === l.data) {
+        r = await sb.from("lancamentos").update(mudou).in("id", proximos.map((x) => x.id));
         if (r.error) throw r.error;
+      } else if (proximos.length) {
+        // Mudou a data: os próximos vão para o mesmo dia (semanal anda os mesmos dias; mensal e parcelas, o mesmo dia do mês).
+        const semanal = series().find((s) => s.grupo === l.grupo)?.semanal;
+        const dias = Math.round((deIso(data) - deIso(l.data)) / 864e5);
+        const meses = (Number(data.slice(0, 4)) - Number(l.data.slice(0, 4))) * 12 + Number(data.slice(5, 7)) - Number(l.data.slice(5, 7));
+        const dia = Number(data.slice(8));
+        const novas = proximos.map((x) => ({ id: x.id, data: semanal ? somarDias(x.data, dias) : noDia(somarMeses(x.data, meses), dia) }));
+        const rs = await Promise.all(novas.map((x) => sb.from("lancamentos").update({ ...mudou, data: x.data }).eq("id", x.id)));
+        const falha = rs.find((x) => x.error);
+        if (falha) { await voltarCampos(antes).catch(() => {}); throw falha.error; }
+        // A repetição automática continua do último lançamento; gerado_ate acompanha para não pular nem repetir mês.
+        if (estado.seriesDb?.get(l.grupo)) {
+          const ult = novas.reduce((m, x) => (x.data > m ? x.data : m), data);
+          r = await sb.from("series").update({ gerado_ate: ult }).eq("grupo", l.grupo);
+          if (r.error) throw r.error;
+        }
       }
       avisar(antes.length > 1 ? `${antes.length} lançamentos alterados.` : "Alterado.", () => voltarCampos(antes));
     } else {
