@@ -1,8 +1,9 @@
 // Guarda a casca do app para abrir rápido e sem internet. Os dados vêm sempre do Supabase.
-const CACHE = "financas-v33";
+const CACHE = "financas-v34";
 const CASCA = [
   "./", "index.html", "app.js", "config.js", "manifest.webmanifest",
-  "icons/icon-192.png", "icons/icon-512.png", "fonts/manrope-latin-wght.woff2", "fonts/jetbrainsmono-latin-wght.woff2",
+  "icons/icon-192.png", "icons/icon-512.png", "icons/favicon.svg", "icons/favicon-32.png", "icons/badge-96.png",
+  "fonts/manrope-latin-wght.woff2", "fonts/jetbrainsmono-latin-wght.woff2",
   "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js",
 ];
 
@@ -34,7 +35,7 @@ self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : "" }; }
   e.waitUntil(self.registration.showNotification(d.title || "Finanças da Casa", {
-    body: d.body || "", icon: "icons/icon-192.png", badge: "icons/icon-192.png", tag: "lembrete-contas", renotify: true, data: { url: d.url || "./" },
+    body: d.body || "", icon: "icons/icon-192.png", badge: "icons/badge-96.png", tag: "lembrete-contas", renotify: true, data: { url: d.url || "./" },
   }));
 });
 
