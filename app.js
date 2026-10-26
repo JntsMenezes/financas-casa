@@ -1070,7 +1070,10 @@ function itemHtml(l, hj, op = {}) {
   // No bloco de hoje o subtítulo já diz o estado; a etiqueta só repetiria.
   if (atrasado && !op.semEstado) tags.push(`<span class="tag atraso">atrasado</span>`);
   else if (passou && !op.semEstado) tags.push(`<span class="tag">não entrou</span>`);
-  if (l.criado_por) tags.push(`<span class="tag quem q${ordemDe(l.criado_por)}" title="Lançado por ${esc(nomeDe(l.criado_por))}">${esc(nomeDe(l.criado_por))}</span>`);
+  if (l.criado_por) {
+    const foto = estado.membros.get(l.criado_por)?.foto;
+    tags.push(`<span class="tag quem q${ordemDe(l.criado_por)} ${foto ? "com-foto" : ""}" title="Lançado por ${esc(nomeDe(l.criado_por))}">${foto ? `<img src="${foto}" alt="">` : ""}${esc(nomeDe(l.criado_por))}</span>`);
+  }
   if (Number(l.valor) === 0) tags.push(`<span class="tag definir">valor a definir</span>`);
   if (estado.pendentes.has(l.id)) tags.push(`<span class="tag espera">aguardando internet</span>`);
   const feito = l.tipo === "receita" ? "recebido" : "pago";

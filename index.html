@@ -301,6 +301,8 @@
   .tag.quem { display: inline-flex; align-items: center; gap: 5px; background: transparent; padding: 1px 0; }
   .tag.quem::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
   .tag.quem.q1::before { background: var(--q1); } .tag.quem.q2::before { background: var(--q2); }
+  .tag.quem.com-foto::before { content: none; }
+  .tag.quem img { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; margin: -2px 0; }
 
   /* Saldo */
   .saldo-valor { font-size: 46px; line-height: 1.02; font-weight: 650; letter-spacing: -.035em; }
