@@ -933,7 +933,7 @@ function render() {
   </div>`;
   if (fraseAntes.mes === mes) {
     for (const [k, v] of [["hoje", naConta], ["fim", fimMes]]) {
-      if (fraseAntes[k] !== null && fraseAntes[k] !== v) document.querySelector(`.frase [data-n="${k}"]`)?.classList.add("mudou");
+      if (fraseAntes[k] !== null && fraseAntes[k] !== v) document.querySelector(`.frase [data-n="${k}"]`)?.classList.add("mudou", v < fraseAntes[k] ? "caiu" : "subiu");
     }
   }
   fraseAntes = { mes, hoje: naConta, fim: fimMes };
@@ -954,7 +954,7 @@ function realcar(ids) {
 
 // Quando a abertura começa a sumir, os dias do mês entram um depois do outro.
 document.addEventListener("abertura-saindo", () => {
-  document.querySelectorAll("#conteudo .dia").forEach((d, i) => { d.style.setProperty("--i", Math.min(i, 6)); d.classList.add("entra"); });
+  document.querySelectorAll("#conteudo .dia").forEach((d, i) => { d.style.setProperty("--i", Math.min(i, 7)); d.classList.add("chega"); });
 }, { once: true });
 
 function diasHtml(lista, hj, entrar = false) {
