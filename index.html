@@ -633,6 +633,24 @@
   .dica:not([hidden]) { animation: surgir .12s var(--sai); }
   @keyframes surgir { from { opacity: 0; } }
 
+  /* Abertura: o ninho se desenha, o ovo assenta, o nome aparece. Só na abertura a frio; um toque pula. */
+  #abertura {
+    position: fixed; inset: 0; z-index: 9999; display: grid; place-content: center; justify-items: center; gap: 18px;
+    background: #123F3B; color: #F4ECDD; animation: aberturaSai .32s var(--sai) 1.9s forwards;
+  }
+  #abertura svg { width: 132px; height: auto; overflow: visible; }
+  #abertura .arco { fill: none; stroke: #F4ECDD; stroke-width: 20; stroke-linecap: round; stroke-dasharray: 1 1; stroke-dashoffset: 1; }
+  #abertura .a1 { animation: aberturaArco .5s var(--sai) .1s forwards; }
+  #abertura .a2 { animation: aberturaArco .55s var(--sai) .25s forwards; }
+  #abertura .ovo { fill: #E3A33B; opacity: 0; transform: translateY(-22px) scale(.96); transform-box: fill-box; transform-origin: 50% 100%; animation: aberturaOvo .6s var(--sai) .6s forwards; }
+  #abertura p { margin: 0; font-size: 21px; letter-spacing: -.01em; opacity: 0; transform: translateY(6px); animation: aberturaNome .4s var(--sai) 1.05s forwards; }
+  #abertura p b { font-weight: 700; }
+  #abertura p span { font-weight: 500; opacity: .8; }
+  @keyframes aberturaArco { 0% { opacity: 0; } 8% { opacity: 1; } 100% { opacity: 1; stroke-dashoffset: 0; } }
+  @keyframes aberturaOvo { to { opacity: 1; transform: none; } }
+  @keyframes aberturaNome { to { opacity: 1; transform: none; } }
+  @keyframes aberturaSai { to { opacity: 0; visibility: hidden; } }
+
   /* Reduzir movimento: nada desliza nem cresce; o que aparece só esmaece */
   @keyframes esmaecer { from { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) {
@@ -642,10 +660,37 @@
     .cx.conquista { animation-duration: .6s !important; }
     .cx-txt small .feito { animation: none !important; stroke-dashoffset: 0; }
     .item.saindo { transform: none; transition: opacity .16s ease-out !important; }
+    #abertura { animation-delay: .7s; }
+    #abertura .arco { animation: none; stroke-dashoffset: 0; }
+    #abertura .ovo, #abertura p { animation: esmaecer .3s ease-out both; opacity: 1; transform: none; }
   }
 </style>
 </head>
 <body>
+<div id="abertura" aria-hidden="true">
+  <svg viewBox="20 52 216 156">
+    <path class="arco a1" pathLength="1" d="M66.18 112.56A64 64 0 0 0 189.82 112.56"/>
+    <path class="arco a2" pathLength="1" d="M39.67 128.15A94 94 0 0 0 216.33 128.15"/>
+    <path class="ovo" d="M88.05 114.43A40 50 0 1 1 167.95 114.43A44 44 0 0 1 88.05 114.43Z"/>
+  </svg>
+  <p><b>Finanças</b> <span>da Casa</span></p>
+</div>
+<script>
+  // Abertura só na primeira vez da sessão. Barra de status no verde enquanto ela aparece.
+  (function () {
+    const ab = document.getElementById("abertura");
+    let visto = false;
+    try { visto = sessionStorage.getItem("abertura") === "1"; sessionStorage.setItem("abertura", "1"); } catch (e) {}
+    if (visto) { ab.remove(); return; }
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const cor = meta.content;
+    meta.content = "#123F3B";
+    const fim = () => { if (!ab.isConnected) return; meta.content = cor; ab.remove(); };
+    ab.addEventListener("animationend", (e) => { if (e.target === ab) fim(); });
+    ab.addEventListener("click", fim);
+    setTimeout(fim, 3000);
+  })();
+</script>
 
 <!-- Login -->
 <section id="tela-login" class="tela-centro" hidden>
