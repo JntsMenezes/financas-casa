@@ -54,14 +54,14 @@
     --primaria-bg: #ddf0f6;
     --sobre-primaria: #ffffff;
     --campo: #ffffff;
-    --check-borda: #b3c0cb;
+    --check-borda: #7d8b98;
     --aviso-ruim: #8f1d1d;
     --aviso-atencao: #6b3e00;
     --vidro: rgba(243, 247, 249, .78);
     --toast-acao: #7fd8f2;
     --grade: rgba(10, 107, 135, .07);
     --brilho: rgba(10, 107, 135, .12);
-    --q1: #0a6b87;
+    --q1: #4352b8;
     --q2: #a3367a;
     --l-ent: var(--verde);
     --l-sai: #d23a3a;
@@ -77,9 +77,9 @@
       --bg: #0a0b0f; --card: #101319; --ink: #e6e8ee; --muted: #8a91a3; --line: rgba(255,255,255,.08);
       --verde: #5eead4; --verde-bg: rgba(94,234,212,.1); --vermelho: #f87171; --vermelho-bg: rgba(248,113,113,.1);
       --ambar: #fbbf24; --ambar-bg: rgba(251,191,36,.1); --primaria: oklch(.82 .14 210); --primaria-bg: oklch(.82 .14 210 / .13); --sobre-primaria: #06121b;
-      --campo: #0e1015; --check-borda: rgba(255,255,255,.24); --aviso-ruim: #fca5a5; --aviso-atencao: #fcd34d;
+      --campo: #0e1015; --check-borda: rgba(255,255,255,.42); --aviso-ruim: #fca5a5; --aviso-atencao: #fcd34d;
       --vidro: rgba(10, 11, 15, .72); --toast-acao: oklch(.82 .14 210); --grade: rgba(255,255,255,.04); --brilho: oklch(.82 .14 210 / .16);
-      --q1: oklch(.82 .14 210); --q2: oklch(.8 .12 330); --l-ent: var(--verde); --l-sai: #e05252;
+      --q1: oklch(.78 .12 275); --q2: oklch(.8 .12 330); --l-ent: var(--verde); --l-sai: #e05252;
       --sombra: 0 0 0 1px rgba(255,255,255,.06); --sombra-alta: 0 -12px 48px rgba(0,0,0,.6);
       color-scheme: dark;
     }
@@ -88,9 +88,9 @@
     --bg: #0a0b0f; --card: #101319; --ink: #e6e8ee; --muted: #8a91a3; --line: rgba(255,255,255,.08);
     --verde: #5eead4; --verde-bg: rgba(94,234,212,.1); --vermelho: #f87171; --vermelho-bg: rgba(248,113,113,.1);
     --ambar: #fbbf24; --ambar-bg: rgba(251,191,36,.1); --primaria: oklch(.82 .14 210); --primaria-bg: oklch(.82 .14 210 / .13); --sobre-primaria: #06121b;
-    --campo: #0e1015; --check-borda: rgba(255,255,255,.24); --aviso-ruim: #fca5a5; --aviso-atencao: #fcd34d;
+    --campo: #0e1015; --check-borda: rgba(255,255,255,.42); --aviso-ruim: #fca5a5; --aviso-atencao: #fcd34d;
     --vidro: rgba(10, 11, 15, .72); --toast-acao: oklch(.82 .14 210); --grade: rgba(255,255,255,.04); --brilho: oklch(.82 .14 210 / .16);
-    --q1: oklch(.82 .14 210); --q2: oklch(.8 .12 330); --l-ent: var(--verde); --l-sai: #e05252;
+    --q1: oklch(.78 .12 275); --q2: oklch(.8 .12 330); --l-ent: var(--verde); --l-sai: #e05252;
     --sombra: 0 0 0 1px rgba(255,255,255,.06); --sombra-alta: 0 -12px 48px rgba(0,0,0,.6);
     color-scheme: dark;
   }
@@ -167,7 +167,7 @@
   .icone:active { background: var(--line); transform: scale(.94); }
   .mes { display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; }
   .mes-titulo { border: 0; background: none; font-size: 16.5px; white-space: nowrap; font-weight: 650; letter-spacing: -.01em; padding: 10px 4px; min-height: 44px; }
-  .pill-hoje { border: 0; background: var(--primaria-bg); color: var(--primaria); font-size: 13px; font-weight: 600; border-radius: 999px; padding: 0 12px; height: 30px; }
+  .pill-hoje { position: relative; border: 0; background: var(--primaria-bg); color: var(--primaria); font-size: 13px; font-weight: 600; border-radius: 999px; padding: 0 12px; height: 30px; }
   .grade { will-change: transform; }
 
   /* Home: fundo do topo com grade fina e brilho, como o portfólio */
@@ -186,6 +186,10 @@
   .casal .ini + .ini { margin-left: -9px; }
   .casal .nomes { font-size: 14px; font-weight: 600; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .selo { display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 10px; border-radius: 7px; border: 1px solid var(--line); background: var(--card); font-family: var(--mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+  .pill-hoje::after { content: ""; position: absolute; inset: -7px -2px; } /* área de toque de 44px sem aumentar o botão */
+  .frase .velho { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; font-size: 14px; color: var(--aviso-atencao); }
+  .frase .velho .ic { width: 16px; height: 16px; flex: none; }
+  .mais-avisos { display: block; margin: 2px auto 0; min-height: 44px; }
   .selo::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--verde); box-shadow: 0 0 0 3px var(--verde-bg); }
   .selo.off::before { background: var(--ambar); box-shadow: 0 0 0 3px var(--ambar-bg); }
   .ultimo { margin: 8px 2px 0; font-size: 13px; line-height: 1.45; color: var(--muted); display: flex; align-items: flex-start; gap: 8px; }

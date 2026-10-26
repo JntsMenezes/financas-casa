@@ -94,6 +94,8 @@ const estado = {
   mes: null, // "AAAA-MM"
   filtro: "todos",
   verPassado: false,
+  verAvisos: false,      // mostra todos os avisos em vez dos 2 mais importantes
+  dadosEm: null,         // quando os dados da tela vieram do banco pela última vez
   editando: null,
   canal: null,
   membros: new Map(), // user_id -> { nome, email }
@@ -298,6 +300,7 @@ async function abrirCasa() {
     estado.diaADia = cache.diaADia ?? null;
     estado.descontos = cache.descontos ?? null;
     estado.caixinhas = cache.caixinhas || null;
+    estado.dadosEm = cache.quando || null;
     mostrarTela("tela-app");
     definirLancs(aplicarFila(cache.lancs));
   }
@@ -377,6 +380,7 @@ async function carregar() {
   estado.cargaFalhou = !!falha;
   definirLancs(aplicarFila([...todos.values()]));
   if (falha) { avisar(msgErro(falha.error)); return false; }
+  estado.dadosEm = Date.now();
   gravarCache();
   return true;
 }
@@ -675,7 +679,7 @@ function barrasDiaHtml(pts, hj, m) {
   const passado = m.mes < hj.slice(0, 7);
   const sobraMes = r2(m.entradas - m.saidas - Math.max(0, m.guardado));
   const frase = `No mês ${passado ? "entraram" : "entram"} <b class="num">${brl.format(m.entradas)}</b> e ${passado ? "saíram" : "saem"} <b class="num">${brl.format(m.saidas + Math.max(0, m.guardado))}</b>${m.guardado > 0 ? `, contando <b class="num">${brl.format(m.guardado)}</b> guardados` : ""}: ${sobraMes >= 0 ? "sobram" : "faltam"} <b class="num">${brl.format(Math.abs(sobraMes))}</b> do próprio mês.` +
-    (Math.abs(m.inicio) >= 0.01 ? ` Com os <b class="num">${brl.format(m.inicio)}</b> que vieram de ${nomeDoMes(somarMeses(m.mes + "-01", -1))}, o dia ${n} fecha com <b class="num">${brl.format(m.fimMes)}</b>.` : "");
+    (Math.abs(m.inicio) >= 0.01 && passado ? ` Com os <b class="num">${brl.format(m.inicio)}</b> que vieram de ${nomeDoMes(somarMeses(m.mes + "-01", -1))}, o dia ${n} fecha com <b class="num">${brl.format(m.fimMes)}</b>.` : "");
   return `<figure class="barras" style="margin-left:0;margin-right:0">
     <div class="barras-cab"><span>Saldo dia a dia</span><span class="selo">${iHoje >= 0 ? `hoje ${hj.slice(8)}` : `${n} dias`}</span></div>
     <div class="barras-area" data-barras>
@@ -786,8 +790,8 @@ function haQuanto(ts) {
 function seloHtml(pessoas = estado.membros.size) {
   const conectado = navigator.onLine && estado.aoVivo;
   const txt = !navigator.onLine ? "sem internet" : !estado.aoVivo ? "conectando"
-    : pessoas < 2 ? "esperando a outra pessoa" : (estado.abertos || 1) >= 2 ? "juntos ON" : "ON";
-  return `<span class="selo ${conectado ? "" : "off"} ${txt === "juntos ON" ? "juntos" : ""}" aria-live="polite">${txt}</span>`;
+    : pessoas < 2 ? "esperando a outra pessoa" : (estado.abertos || 1) >= 2 ? "os dois agora" : "ao vivo";
+  return `<span class="selo ${conectado ? "" : "off"} ${txt === "os dois agora" ? "juntos" : ""}" aria-live="polite">${txt}</span>`;
 }
 function atualizarSelo() {
   const s = document.querySelector(".casal .selo");
@@ -857,9 +861,10 @@ function render() {
   // Avisos, cada um leva ao que precisa ser feito.
   const avisos = [];
   const menor = pts.reduce((a, p) => (p.saldo < a.saldo ? p : a), pts[0]);
-  if (menor.saldo < 0 && fim >= hj && mes < mesAtual) {
-    const primeiro = pts.find((p) => p.saldo < 0 && p.data >= hj) || menor;
-    avisos.push(`<button class="aviso ruim" data-ir-dia="${primeiro.data}">${IC.alerta}<span>O saldo previsto fica negativo em ${dataCurta(primeiro.data)}: <b class="num">${brl.format(primeiro.saldo)}</b>.</span>${IC.ir}</button>`);
+  const primeiroNeg = mes >= mesAtual ? pts.find((p) => p.saldo < 0 && p.data >= hj) : null;
+  if (primeiroNeg) {
+    const primeiro = primeiroNeg;
+    avisos.push(`<button class="aviso ruim" data-ir-dia="${primeiro.data}">${IC.alerta}<span>Dia ${Number(primeiro.data.slice(8))} fica em <b class="num">${brl.format(primeiro.saldo)}</b>. Dá para mudar a data de alguma conta?</span>${IC.ir}</button>`);
   }
   const atrasados = estado.lancs.filter((l) => !l.pago && l.data < hj);
   if (atrasados.length && mes !== mesAtual) {
@@ -913,9 +918,11 @@ function render() {
     <section class="col-resumo">
       ${casalHtml()}
       ${faltaPoucoHtml()}
-      <div class="frase"><h2>${titulo}</h2><p>${apoio}</p>${mes === mesAtual ? '<button class="link conferir" type="button" data-conferir>Conferir com o banco</button>' : ""}</div>
+      <div class="frase"><h2>${titulo}</h2>${(!navigator.onLine || estado.cargaFalhou) && estado.dadosEm
+        ? `<p class="velho">${IC.alerta}<span>Atualizado ${((q) => (/^\d/.test(q) ? "em " + q : q))(haQuanto(estado.dadosEm))}; ${navigator.onLine ? "não consegui buscar o que mudou depois" : "sem internet agora"}.</span></p>` : ""}<p>${apoio}</p>${mes === mesAtual ? '<button class="link conferir" type="button" data-conferir>Conferir com o banco</button>' : ""}</div>
       ${blocoHoje}
-      ${avisos.length ? `<div class="avisos">${avisos.join("")}</div>` : ""}
+      ${avisos.length ? `<div class="avisos">${(estado.verAvisos ? avisos : avisos.slice(0, 2)).join("")}${avisos.length > 2
+        ? `<button class="link mais-avisos" type="button" data-mais-avisos>${estado.verAvisos ? "Mostrar menos" : `Mais ${avisos.length - 2} ${avisos.length - 2 === 1 ? "aviso" : "avisos"}`}</button>` : ""}</div>` : ""}
       ${barrasDiaHtml(pts, hj, { mes, entradas, saidas, guardado, inicio: inicioMes, fimMes, apoio })}
       <nav class="atalhos" aria-label="Mais">
       ${doMes.length ? `<button class="linha-resumo" data-abrir-resumo>${svg('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>')}<span>Para onde foi<small>${MESES[Number(mes.slice(5)) - 1]}/${mes.slice(2, 4)}</small></span>${IC.ir}</button>` : ""}
@@ -1056,6 +1063,7 @@ $("conteudo").addEventListener("click", async (ev) => {
   if (t("[data-filtro]")) { estado.filtro = t("[data-filtro]").dataset.filtro; estado.filtroCat = null; render(); return; }
   if (t("[data-limpar-cat]")) { estado.filtroCat = null; render(); return; }
   if (t("[data-abrir-resumo]")) { abrirResumo(); return; }
+  if (t("[data-mais-avisos]")) { estado.verAvisos = !estado.verAvisos; render(); return; }
   if (t("[data-recarregar]")) { if (await carregar()) avisar("Atualizado."); return; }
   if (t("[data-ver-recusados]")) {
     const rec = recusados();
