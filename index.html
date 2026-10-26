@@ -631,15 +631,19 @@
   .cx-txt small .feito { width: 14px; height: 14px; stroke-width: 2.6; vertical-align: -2px; margin-right: 4px; stroke-dasharray: 24; stroke-dashoffset: 24; animation: desenhar .4s var(--sai) .7s forwards; }
   @keyframes desenhar { to { stroke-dashoffset: 0; } }
   .dica:not([hidden]) { animation: surgir .12s var(--sai); }
+  .item.realce { animation: realce 1s ease-out .25s; }
+  @keyframes realce { from, 35% { background-color: var(--primaria-bg); } }
   @keyframes surgir { from { opacity: 0; } }
 
   /* Abertura: o ninho se desenha, o ovo assenta, o nome aparece. Só na abertura a frio; um toque pula. */
   #abertura {
     position: fixed; inset: 0; z-index: 9999; display: grid; place-content: center; justify-items: center; gap: 18px;
-    background: #123F3B; color: #F4ECDD; animation: aberturaSai .32s var(--sai) 1.9s forwards;
+    --ninho: #123F3B; background: var(--bg); color: var(--ninho); animation: aberturaSai .32s var(--sai) 1.9s forwards;
   }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) #abertura { --ninho: #F4ECDD; } }
+  :root[data-theme="dark"] #abertura { --ninho: #F4ECDD; }
   #abertura svg { width: 132px; height: auto; overflow: visible; }
-  #abertura .arco { fill: none; stroke: #F4ECDD; stroke-width: 20; stroke-linecap: round; stroke-dasharray: 1 1; stroke-dashoffset: 1; }
+  #abertura .arco { fill: none; stroke: var(--ninho); stroke-width: 20; stroke-linecap: round; stroke-dasharray: 1 1; stroke-dashoffset: 1; }
   #abertura .a1 { animation: aberturaArco .5s var(--sai) .1s forwards; }
   #abertura .a2 { animation: aberturaArco .55s var(--sai) .25s forwards; }
   #abertura .ovo { fill: #E3A33B; opacity: 0; transform: translateY(-22px) scale(.96); transform-box: fill-box; transform-origin: 50% 100%; animation: aberturaOvo .6s var(--sai) .6s forwards; }
@@ -676,16 +680,16 @@
   <p><b>Finanças</b> <span>da Casa</span></p>
 </div>
 <script>
-  // Abertura só na primeira vez da sessão. Barra de status no verde enquanto ela aparece.
+  // Abertura só na primeira vez da sessão, no mesmo fundo do app.
   (function () {
     const ab = document.getElementById("abertura");
     let visto = false;
     try { visto = sessionStorage.getItem("abertura") === "1"; sessionStorage.setItem("abertura", "1"); } catch (e) {}
     if (visto) { ab.remove(); return; }
-    const meta = document.querySelector('meta[name="theme-color"]');
-    const cor = meta.content;
-    meta.content = "#123F3B";
-    const fim = () => { if (!ab.isConnected) return; meta.content = cor; ab.remove(); };
+    let avisou = false;
+    const saindo = () => { if (!avisou) { avisou = true; document.dispatchEvent(new Event("abertura-saindo")); } };
+    const fim = () => { saindo(); if (ab.isConnected) ab.remove(); };
+    ab.addEventListener("animationstart", (e) => { if (e.target === ab) saindo(); });
     ab.addEventListener("animationend", (e) => { if (e.target === ab) fim(); });
     ab.addEventListener("click", fim);
     setTimeout(fim, 3000);

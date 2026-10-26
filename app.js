@@ -940,6 +940,23 @@ function render() {
   estado.animarPassado = false;
 }
 
+// Depois de salvar, o lançamento pisca de leve no lugar onde foi parar; se ficou fora da tela, a lista rola até ele.
+function realcar(ids) {
+  const el = ids.map((id) => document.querySelector(`#conteudo [data-editar="${id}"]`)?.closest(".item")).find(Boolean);
+  if (!el) return;
+  el.classList.add("realce");
+  el.addEventListener("animationend", () => el.classList.remove("realce"), { once: true });
+  const r = el.getBoundingClientRect();
+  if (r.top < 80 || r.bottom > innerHeight - 100) {
+    el.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+  }
+}
+
+// Quando a abertura começa a sumir, os dias do mês entram um depois do outro.
+document.addEventListener("abertura-saindo", () => {
+  document.querySelectorAll("#conteudo .dia").forEach((d, i) => { d.style.setProperty("--i", Math.min(i, 6)); d.classList.add("entra"); });
+}, { once: true });
+
 function diasHtml(lista, hj, entrar = false) {
   const grupos = new Map();
   for (const l of lista) { if (!grupos.has(l.data)) grupos.set(l.data, []); grupos.get(l.data).push(l); }
@@ -1461,6 +1478,7 @@ $("painel-lanc").addEventListener("submit", async (ev) => {
   btn.disabled = true;
   try {
     const l = estado.editando;
+    let realcarIds = [];
     const cat = estado.temCategoria ? { categoria: estado.categoriaSel || adivinharCategoria(descricao, tipoSel) } : {};
     if (l) {
       const campos = { descricao, tipo: tipoSel, valor, ...cat };
@@ -1494,6 +1512,7 @@ $("painel-lanc").addEventListener("submit", async (ev) => {
         }
       }
       avisar(antes.length > 1 ? `${antes.length} lançamentos alterados.` : "Alterado.", () => voltarCampos(antes));
+      realcarIds = [l.id];
     } else {
       const base = { casa_id: estado.casa.id, descricao, tipo: tipoSel, valor, observacao, ...cat };
       const pagoPrimeiro = $("lanc-pago").checked;
@@ -1564,9 +1583,11 @@ $("painel-lanc").addEventListener("submit", async (ev) => {
         await apagarIds(ids);
       });
       estado.mes = data.slice(0, 7);
+      realcarIds = ids;
     }
     fecharPaineis();
     await carregar();
+    realcar(realcarIds);
   } catch (e) {
     erro(msgErro(e));
   } finally {
