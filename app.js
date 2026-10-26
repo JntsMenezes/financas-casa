@@ -328,8 +328,9 @@ async function manterSeries() {
 }
 
 async function carregarMembros() {
-  let r = await sb.from("membros").select("user_id, nome, email").eq("casa_id", estado.casa.id);
-  // Banco ainda sem as colunas de nome (antes do 02_historico.sql).
+  let r = await sb.from("membros").select("user_id, nome, email, foto").eq("casa_id", estado.casa.id);
+  // Banco ainda sem a foto (13_foto.sql) ou sem as colunas de nome (02_historico.sql).
+  if (r.error?.code === "42703") r = await sb.from("membros").select("user_id, nome, email").eq("casa_id", estado.casa.id);
   if (r.error?.code === "42703") r = await sb.from("membros").select("user_id").eq("casa_id", estado.casa.id);
   if (r.error) { avisar(msgErro(r.error)); return; } // mantém os nomes que já estavam na tela
   estado.membros = new Map((r.data || []).map((m) => [m.user_id, m]));
@@ -805,6 +806,38 @@ function ordemDe(uid) {
   return i < 0 ? 0 : (i % 2) + 1;
 }
 
+// Foto da pessoa, ou a inicial na cor dela. A própria pessoa toca na dela para trocar.
+function avatarHtml(uid, ordem, classe = "ini") {
+  const m = estado.membros.get(uid), eu = uid === estado.sessao?.user?.id;
+  const dentro = m?.foto
+    ? `<img src="${m.foto}" alt="">`
+    : esc((nomeDe(uid) || "?").charAt(0).toUpperCase());
+  return eu
+    ? `<button class="${classe} bg-q${ordem} ${m?.foto ? "com-foto" : ""}" type="button" data-minha-foto aria-label="Sua foto: tocar para trocar">${dentro}</button>`
+    : `<span class="${classe} bg-q${ordem} ${m?.foto ? "com-foto" : ""}" aria-hidden="true">${dentro}</span>`;
+}
+
+// Recorta no meio, reduz para 128 px e guarda como JPEG pequeno (cerca de 6 KB).
+async function salvarFoto(arquivo) {
+  const img = await createImageBitmap(arquivo);
+  const lado = Math.min(img.width, img.height), T = 128;
+  const c = document.createElement("canvas"); c.width = c.height = T;
+  c.getContext("2d").drawImage(img, (img.width - lado) / 2, (img.height - lado) / 2, lado, lado, 0, 0, T, T);
+  const foto = c.toDataURL("image/jpeg", 0.82);
+  const { error } = await sb.rpc("definir_minha_foto", { p_foto: foto });
+  if (error) throw error;
+  await carregarMembros();
+  gravarCache();
+  render();
+  preencherFotoAjustes();
+}
+function preencherFotoAjustes() {
+  const eu = estado.sessao?.user?.id;
+  if (!eu || !$("ajustes-foto")) return;
+  $("ajustes-foto").outerHTML = avatarHtml(eu, ordemDe(eu), "ini-grande").replace("<button", '<button id="ajustes-foto"').replace("<span", '<span id="ajustes-foto"');
+  $("ajustes-tirar-foto").hidden = !estado.membros.get(eu)?.foto;
+}
+
 function casalHtml() {
   const ids = [...estado.membros.keys()].slice(0, 2);
   if (!ids.length && estado.sessao) ids.push(estado.sessao.user.id);
@@ -812,7 +845,7 @@ function casalHtml() {
 
   const acao = ultimaAcao();
   return `<div class="casal">
-    <span class="pares" aria-hidden="true">${ids.map((u, i) => `<span class="ini bg-q${i + 1}">${esc((nomeDe(u) || "?").charAt(0).toUpperCase())}</span>`).join("")}</span>
+    <span class="pares">${ids.map((u, i) => avatarHtml(u, i + 1)).join("")}</span>
     <span class="nomes">${esc(nomes.join(" e "))}</span>
     ${seloHtml(ids.length)}
   </div>${acao ? `<p class="ultimo"><i class="q${ordemDe(acao.uid)}"></i><span><b>${esc(nomeDe(acao.uid))}</b> ${acao.txt}, ${haQuanto(acao.quando)}.</span></p>` : ""}`;
@@ -1063,6 +1096,7 @@ $("conteudo").addEventListener("click", async (ev) => {
   if (t("[data-filtro]")) { estado.filtro = t("[data-filtro]").dataset.filtro; estado.filtroCat = null; render(); return; }
   if (t("[data-limpar-cat]")) { estado.filtroCat = null; render(); return; }
   if (t("[data-abrir-resumo]")) { abrirResumo(); return; }
+  if (t("[data-minha-foto]")) { $("foto-arquivo").click(); return; }
   if (t("[data-mais-avisos]")) { estado.verAvisos = !estado.verAvisos; render(); return; }
   if (t("[data-recarregar]")) { if (await carregar()) avisar("Atualizado."); return; }
   if (t("[data-ver-recusados]")) {
@@ -3029,6 +3063,7 @@ $("abrir-ajustes").onclick = () => {
   $("ajustes-codigo").textContent = estado.casa?.codigo || "—";
   $("ajustes-email").textContent = "Conectado como " + (estado.sessao?.user?.email || "");
   $("ajustes-nome").value = estado.membros.get(estado.sessao?.user?.id)?.nome || "";
+  preencherFotoAjustes();
   $("btn-limites").hidden = !estado.limites;
   mostrarLembretes();
   aplicarTema(temaAtual());
@@ -3134,6 +3169,21 @@ $("btn-convidar").onclick = async () => {
   } catch (e) { /* compartilhamento cancelado */ }
 };
 
+$("ajustes-escolher-foto").onclick = () => $("foto-arquivo").click();
+$("painel-ajustes").addEventListener("click", (e) => { if (e.target.closest("[data-minha-foto]")) $("foto-arquivo").click(); });
+$("foto-arquivo").onchange = async (e) => {
+  const arq = e.target.files?.[0];
+  e.target.value = "";
+  if (!arq) return;
+  try { await salvarFoto(arq); avisar("Foto salva. A outra pessoa vê na próxima vez que abrir."); }
+  catch (err) { avisar(/definir_minha_foto/.test(err.message || "") ? "Falta atualizar o banco (13_foto.sql)." : "Não consegui usar essa foto. Tente outra."); }
+};
+$("ajustes-tirar-foto").onclick = async () => {
+  if (!(await confirmar("Tirar a foto?", "Volta a aparecer a sua inicial.", "Tirar"))) return;
+  const { error } = await sb.rpc("definir_minha_foto", { p_foto: "" });
+  if (error) return avisar(msgErro(error));
+  await carregarMembros(); gravarCache(); render(); preencherFotoAjustes();
+};
 $("ajustes-salvar-nome").onclick = async () => {
   const nome = $("ajustes-nome").value.trim().slice(0, 40);
   const { error } = await sb.rpc("definir_meu_nome", { p_nome: nome });
