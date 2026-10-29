@@ -304,7 +304,7 @@ async function abrirCasa() {
     mostrarTela("tela-app");
     definirLancs(aplicarFila(cache.lancs));
   }
-  const { data, error } = await sb.from("membros").select("casa_id, casas(id, nome, codigo)").limit(1);
+  const { data, error } = await sb.from("membros").select("casa_id, casas(id, nome, codigo, so_eu)").limit(1);
   if (error) {
     if (cache) { avisar(ehErroRede(error) ? `Sem internet. Mostrando os dados de ${quando(cache.quando)}.` : msgErro(error)); return; }
     avisar(msgErro(error)); mostrarTelaCasa(); return;
@@ -840,7 +840,7 @@ function haQuanto(ts) {
 function seloHtml(pessoas = estado.membros.size) {
   const conectado = navigator.onLine && estado.aoVivo;
   const txt = !navigator.onLine ? "sem internet" : !estado.aoVivo ? "conectando"
-    : pessoas < 2 ? "esperando a outra pessoa" : (estado.abertos || 1) >= 2 ? "os dois agora" : "ao vivo";
+    : pessoas < 2 ? (estado.casa?.so_eu ? "ao vivo" : "esperando a outra pessoa") : (estado.abertos || 1) >= 2 ? "os dois agora" : "ao vivo";
   return `<span class="selo ${conectado ? "" : "off"} ${txt === "os dois agora" ? "juntos" : ""}" aria-live="polite">${txt}</span>`;
 }
 function atualizarSelo() {
@@ -2868,7 +2868,7 @@ function progressoInicio() {
   const L = estado.lancs;
   return {
     saldo: L.length > 0,
-    casal: estado.membros.size >= 2,
+    casal: estado.membros.size >= 2 || !!estado.casa?.so_eu,
     receita: L.some((l) => l.tipo === "receita" && l.recorrente),
     fixas: L.some((l) => l.tipo === "despesa" && l.recorrente),
   };
@@ -2880,7 +2880,10 @@ function passosHtml(p) {
   const passo = (n, feito, corpo, attrs) => `<${feito ? "div" : "button type=\"button\""} class="passo ${feito ? "feito" : ""}" ${feito ? "" : attrs}>
     <span class="passo-n">${feito ? '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>' : n}</span><div>${corpo}</div>${feito ? "" : IC.ir}</${feito ? "div" : "button"}>`;
   return [
-    passo(2, p.casal, "<b>Chame quem divide a casa</b><small>Os dois veem e lançam juntos, cada um no seu celular. Usa sozinha ou sozinho? Pode pular.</small>", 'data-bv="convidar"'),
+    p.casal
+      ? passo(2, true, estado.casa?.so_eu && estado.membros.size < 2 ? "<b>Só você nesta casa</b><small>Se alguém entrar depois, use Convidar em Ajustes.</small>" : "<b>Quem divide a casa já entrou</b>")
+      : `<div class="passo"><span class="passo-n">2</span><div><b>Mais alguém vai usar esta casa?</b><small>Quem divide as contas com você vê e lança junto, cada um no seu celular.</small>
+          <div class="adm-acoes"><button class="btn sec" type="button" data-bv="so-eu">Só eu</button><button class="btn" type="button" data-bv="convidar">Com mais alguém</button></div></div></div>`,
     passo(3, p.receita, "<b>O que entra todo mês</b><small>Salário, vale, renda extra.</small>", 'data-bv="receita"'),
     passo(4, p.fixas, "<b>As contas fixas</b><small>Aluguel, luz, internet, escola.</small>", 'data-bv="fixa"'),
   ].join("");
@@ -2923,12 +2926,21 @@ $("conteudo").addEventListener("submit", async (ev) => {
   const { error } = await sb.from("lancamentos").upsert(linha);
   if (error) { avisar(msgErro(error)); return; }
   await carregar();
-  avisar(estado.membros.size < 2 ? "Saldo de hoje salvo. Agora chame quem divide a casa." : "Saldo de hoje salvo. Agora o que entra todo mês.");
+  avisar(progressoInicio().casal ? "Saldo de hoje salvo. Agora o que entra todo mês." : "Saldo de hoje salvo. Agora diga se mais alguém vai usar a casa.");
 });
 $("conteudo").addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-bv]");
   if (!b) return;
   if (b.dataset.bv === "dispensar") { try { localStorage.setItem(CHAVE_INICIO, estado.casa.id); } catch (e) {} render(); return; }
+  if (b.dataset.bv === "so-eu") {
+    b.disabled = true;
+    sb.rpc("definir_so_eu", { p_so_eu: true }).then(({ error }) => {
+      if (error) { b.disabled = false; avisar(msgErro(error)); return; }
+      estado.casa.so_eu = true;
+      render(); atualizarSelo();
+    });
+    return;
+  }
   if (b.dataset.bv === "receita") abrirLanc(null, { tipo: "receita", repetir: "mensal", semFim: true });
   else if (b.dataset.bv === "fixa") abrirLanc(null, { tipo: "despesa", repetir: "mensal", semFim: true });
   else $("btn-convidar").click();
