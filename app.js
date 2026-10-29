@@ -670,7 +670,7 @@ function barrasDiaHtml(pts, hj, m) {
     const op = i === iHoje ? 1 : p.data < hj ? 0.32 : 0.7;
     return `<rect x="${(i * passo + (passo - larg) / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${larg.toFixed(1)}" height="${alt.toFixed(1)}" rx="${Math.min(2, larg / 2).toFixed(1)}" fill="${cor}" opacity="${op}"/>`;
   }).join("");
-  const marca = iHoje >= 0 ? `<circle cx="${(iHoje * passo + passo / 2).toFixed(1)}" cy="${(pts[iHoje].saldo >= 0 ? zero - Math.max(2, (pts[iHoje].saldo / faixa) * H) : zero + Math.max(2, (-pts[iHoje].saldo / faixa) * H)) - (pts[iHoje].saldo >= 0 ? 7 : -7)}" r="3" fill="var(--primaria)"/>` : "";
+  const marca = iHoje >= 0 ? `<circle cx="${(iHoje * passo + passo / 2).toFixed(1)}" cy="${(pts[iHoje].saldo >= 0 ? zero - Math.max(2, (pts[iHoje].saldo / faixa) * H) : zero + Math.max(2, (-pts[iHoje].saldo / faixa) * H)) - (pts[iHoje].saldo >= 0 ? 7 : -7)}" r="3.5" fill="var(--ovo)"/>` : "";
   const menor = pts.reduce((a, p) => (p.saldo < a.saldo ? p : a), pts[0]);
   const frente = pts.filter((p) => p.data >= hj);
   const menorFrente = frente.reduce((a, p) => (p.saldo < a.saldo ? p : a), frente[0]);
@@ -3046,7 +3046,7 @@ function aplicarTema(t) {
   try { if (t === "auto") localStorage.removeItem("tema"); else localStorage.setItem("tema", t); } catch (e) {}
   for (const b of $("seg-tema").children) b.classList.toggle("ativo", b.dataset.tema === t);
   const escuro = t === "dark" || (t === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
-  document.querySelector('meta[name="theme-color"]').content = escuro ? "#0a0b0f" : "#f3f7f9";
+  document.querySelector('meta[name="theme-color"]').content = escuro ? "#0e1917" : "#faf6ee";
 }
 $("seg-tema").onclick = (e) => { const b = e.target.closest("[data-tema]"); if (b) aplicarTema(b.dataset.tema); };
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => aplicarTema(temaAtual()));

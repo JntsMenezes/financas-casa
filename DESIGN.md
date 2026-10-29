@@ -1,53 +1,59 @@
 ---
 name: Finanças da Casa
-description: PWA de finanças a dois, calmo, em tema escuro ou claro, que lê o mês em uma frase com o número em ciano.
+description: PWA de finanças a dois, calmo e quente, no mundo do logo Ninho (creme, verde-ninho e um ovo âmbar), que lê o mês em uma frase com o número em verde.
 colors:
-  fundo: "#f3f7f9"
-  superficie: "#ffffff"
-  campo: "#ffffff"
-  tinta: "#0d1823"
-  tinta-suave: "#566373"
-  linha: "#dde5eb"
-  check-borda: "#b3c0cb"
-  primaria: "#0a6b87"
-  primaria-fundo: "#ddf0f6"
-  sobre-primaria: "#ffffff"
+  fundo: "#faf6ee"
+  superficie: "#fffdf8"
+  campo: "#fffdf8"
+  tinta: "#1f2a27"
+  tinta-suave: "#675f53"
+  linha: "#e8dfcf"
+  check-borda: "#8a8172"
+  primaria: "#123f3b"
+  primaria-fundo: "#e3ebe4"
+  sobre-primaria: "#f4ecdd"
+  destaque: "#1c6b5d"
+  ovo: "#e3a33b"
+  ovo-forte: "#c98a22"
+  ovo-fundo: "#f7ead2"
+  ovo-tinta: "#7a4f0c"
+  topo: "#f1e7d4"
   verde: "#0f766e"
-  verde-fundo: "#ddf3ef"
-  vermelho: "#c62828"
-  vermelho-fundo: "#fcebeb"
-  aviso-ruim-texto: "#8f1d1d"
-  ambar: "#995a00"
-  ambar-fundo: "#fcf0da"
+  verde-fundo: "#e1efe8"
+  vermelho: "#b42318"
+  vermelho-fundo: "#fbe8e3"
+  aviso-ruim-texto: "#7a1a12"
+  ambar: "#9a5b00"
+  ambar-fundo: "#f8ead0"
   aviso-atencao-texto: "#6b3e00"
-  pessoa-1: "#0a6b87"
+  pessoa-1: "#3f51a8"
   pessoa-2: "#a3367a"
-  vidro: "rgba(243, 247, 249, .78)"
-  grade: "rgba(10, 107, 135, .07)"
-  brilho: "rgba(10, 107, 135, .12)"
-  fundo-escuro: "#0a0b0f"
-  superficie-escuro: "#101319"
-  campo-escuro: "#0e1015"
-  tinta-escuro: "#e6e8ee"
-  tinta-suave-escuro: "#8a91a3"
-  linha-escuro: "rgba(255,255,255,.08)"
-  check-borda-escuro: "rgba(255,255,255,.24)"
-  primaria-escuro: "oklch(.82 .14 210)"
-  primaria-fundo-escuro: "oklch(.82 .14 210 / .13)"
-  sobre-primaria-escuro: "#06121b"
-  verde-escuro: "#5eead4"
-  verde-fundo-escuro: "rgba(94,234,212,.1)"
-  vermelho-escuro: "#f87171"
-  vermelho-fundo-escuro: "rgba(248,113,113,.1)"
-  aviso-ruim-texto-escuro: "#fca5a5"
-  ambar-escuro: "#fbbf24"
-  ambar-fundo-escuro: "rgba(251,191,36,.1)"
-  aviso-atencao-texto-escuro: "#fcd34d"
-  pessoa-1-escuro: "oklch(.82 .14 210)"
-  pessoa-2-escuro: "oklch(.8 .12 330)"
-  vidro-escuro: "rgba(10, 11, 15, .72)"
-  grade-escuro: "rgba(255,255,255,.04)"
-  brilho-escuro: "oklch(.82 .14 210 / .16)"
+  vidro: "rgba(250, 246, 238, .84)"
+  fundo-escuro: "#0e1917"
+  superficie-escuro: "#152320"
+  campo-escuro: "#111e1b"
+  tinta-escuro: "#f1e9da"
+  tinta-suave-escuro: "#a59d8d"
+  linha-escuro: "rgba(241,233,218,.09)"
+  check-borda-escuro: "rgba(241,233,218,.42)"
+  primaria-escuro: "#f4ecdd"
+  primaria-fundo-escuro: "rgba(244,236,221,.1)"
+  sobre-primaria-escuro: "#123f3b"
+  destaque-escuro: "#9fd3bf"
+  ovo-escuro: "#e3a33b"
+  ovo-tinta-escuro: "#f0c27a"
+  topo-escuro: "#13241f"
+  verde-escuro: "#8fd3bf"
+  verde-fundo-escuro: "rgba(143,211,191,.11)"
+  vermelho-escuro: "#f08a7e"
+  vermelho-fundo-escuro: "rgba(240,138,126,.11)"
+  aviso-ruim-texto-escuro: "#f6b3a9"
+  ambar-escuro: "#f2b54d"
+  ambar-fundo-escuro: "rgba(242,181,77,.11)"
+  aviso-atencao-texto-escuro: "#f5cf86"
+  pessoa-1-escuro: "oklch(.78 .1 265)"
+  pessoa-2-escuro: "oklch(.8 .11 345)"
+  vidro-escuro: "rgba(14, 25, 23, .8)"
 typography:
   display:
     fontFamily: "Manrope, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
@@ -84,16 +90,16 @@ typography:
     lineHeight: 1.3
     letterSpacing: "-.005em"
   valor:
-    fontFamily: "JetBrains Mono, ui-monospace, monospace"
-    fontSize: "14px"
-    fontWeight: 500
-    letterSpacing: "-.03em"
+    fontFamily: "Manrope, system-ui, sans-serif"
+    fontSize: "15px"
+    fontWeight: 650
+    letterSpacing: "-.01em"
     fontFeature: "tnum"
   label:
-    fontFamily: "JetBrains Mono, ui-monospace, monospace"
-    fontSize: "11px"
-    fontWeight: 400
-    letterSpacing: ".08em"
+    fontFamily: "Manrope, system-ui, sans-serif"
+    fontSize: "12.5px"
+    fontWeight: 600
+    letterSpacing: "0"
     fontFeature: "tnum"
 rounded:
   tag: "6px"
@@ -190,6 +196,21 @@ components:
 ---
 
 # Design System: Finanças da Casa
+
+## Mundo Ninho (29/10/2026): vale mais que o texto antigo abaixo
+
+O app saiu do visual do portfólio (ciano neon, grade, JetBrains Mono) e entrou no mundo do logo Ninho.
+
+- **Fundo:** creme quente no claro (`#faf6ee`), verde-noite no escuro (`#0e1917`). O alto da home tem só um degradê do creme do logo (`topo`) sumindo no fundo. Sem grade e sem brilho.
+- **Ações:** Verde Ninho `#123f3b` com texto creme no claro (como o ícone); creme com texto verde no escuro. Links e textos de ação em `destaque`.
+- **Número da frase:** `destaque` (`#1c6b5d` / `#9fd3bf`), para separar da tinta.
+- **A Regra do Ovo:** o âmbar `#e3a33b` aparece só no que é guardado (caixinhas, "guardado" no resumo, ícone de caixinha) e no hoje (ponto no gráfico de saldo, ovinho na divisória "Hoje"). Não é cor de aviso: aviso usa `ambar`, mais escuro e sempre com texto.
+- **Letras:** só Manrope. Valores e datas com `tabular-nums`, sem mono. Rótulos em letra normal, sem maiúsculas espaçadas; cabeçalho do dia com a primeira letra maiúscula. Frase em 750.
+- **Selos:** pílula, Manrope 600.
+- **Abertura:** o ninho se desenha sobre o fundo do app (verde no claro, creme no escuro) e o ovo âmbar assenta.
+- **Verde dos valores no escuro:** suavizado de `#5eead4` para `#8fd3bf` (pedido do usuário).
+
+Onde o texto abaixo fala em ciano, mono, grade ou brilho, leia com os valores desta seção.
 
 ## Overview
 
