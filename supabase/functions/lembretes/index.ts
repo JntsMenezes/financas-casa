@@ -1,6 +1,7 @@
 // Avisos no celular, chamados pelo pg_cron com o segredo no cabeçalho x-cron-segredo.
 //   corpo {} ou {"tipo":"lembretes"}: todo dia, despesas sem check que vencem hoje e amanhã.
 //   corpo {"tipo":"resumo"}: domingo à noite, como foi a semana e o que vem na próxima.
+//   corpo {"tipo":"pedido"}: chamado pelo gatilho de pedidos_casa; avisa só os celulares do admin.
 //   "seco": true monta as mensagens e devolve, sem mandar nada (para testar).
 // Segredos da função: VAPID_PUBLICA, VAPID_PRIVADA, CRON_SEGREDO.
 import webpush from "npm:web-push@3.6.7";
@@ -126,16 +127,42 @@ async function resumo(sb: SupabaseClient): Promise<Map<string, Aviso>> {
   return avisos;
 }
 
+// Pedido de casa esperando: uma mensagem para cada casa onde o admin tem celular inscrito.
+async function pedidos(sb: SupabaseClient): Promise<{ avisos: Map<string, Aviso>; admins: string[] }> {
+  const avisos = new Map<string, Aviso>();
+  const { data: adm, error: eAdm } = await sb.from("admins").select("user_id");
+  if (eAdm) throw eAdm;
+  const admins = (adm ?? []).map((a) => a.user_id as string);
+  if (!admins.length) return { avisos, admins };
+  const { data: ped, error: ePed } = await sb.from("pedidos_casa").select("nome, email").eq("status", "pendente").order("criado_em", { ascending: false });
+  if (ePed) throw ePed;
+  if (!ped?.length) return { avisos, admins };
+  const quem = ped[0].nome || ped[0].email || "Alguém";
+  const aviso: Aviso = {
+    title: ped.length > 1 ? `${ped.length} pedidos de casa esperando` : "Pedido de casa",
+    body: ped.length > 1 ? `O mais recente é de ${quem}. Toque para aprovar ou recusar.` : `${quem} pediu uma casa. Toque para aprovar ou recusar.`,
+    url: APP + "#admin",
+  };
+  const { data: ins, error: eIns } = await sb.from("push_inscricoes").select("casa_id").in("user_id", admins);
+  if (eIns) throw eIns;
+  for (const i of ins ?? []) avisos.set(i.casa_id, aviso);
+  return { avisos, admins };
+}
+
 Deno.serve(async (req) => {
   if (req.headers.get("x-cron-segredo") !== Deno.env.get("CRON_SEGREDO")) {
     return new Response("não autorizado", { status: 401 });
   }
   const corpo = await req.json().catch(() => ({})) as { tipo?: string; seco?: boolean };
-  const tipo = corpo.tipo === "resumo" ? "resumo" : "lembretes";
+  const tipo = corpo.tipo === "resumo" ? "resumo" : corpo.tipo === "pedido" ? "pedido" : "lembretes";
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
   let avisos: Map<string, Aviso>;
-  try { avisos = tipo === "resumo" ? await resumo(sb) : await lembretes(sb); }
+  let admins: string[] = [];
+  try {
+    if (tipo === "pedido") ({ avisos, admins } = await pedidos(sb));
+    else avisos = tipo === "resumo" ? await resumo(sb) : await lembretes(sb);
+  }
   catch (e) {
     console.error(`${tipo}: montagem`, e);
     return Response.json({ erro: (e as Error).message }, { status: 500 });
@@ -145,6 +172,7 @@ Deno.serve(async (req) => {
 
   let q = sb.from("push_inscricoes").select("*").in("casa_id", [...avisos.keys()]);
   if (tipo === "resumo") q = q.eq("resumo", true);
+  if (tipo === "pedido") q = q.in("user_id", admins);
   const { data: inscricoes, error: eIns } = await q;
   if (eIns) {
     console.error(`${tipo}: leitura das inscrições`, eIns);

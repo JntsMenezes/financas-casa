@@ -1,5 +1,5 @@
 // Guarda a casca do app para abrir rápido e sem internet. Os dados vêm sempre do Supabase.
-const CACHE = "financas-v43";
+const CACHE = "financas-v44";
 const CASCA = [
   "./", "index.html", "app.js", "config.js", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/favicon.svg", "icons/favicon-32.png", "icons/badge-96.png",
@@ -44,6 +44,9 @@ self.addEventListener("notificationclick", (e) => {
   const alvo = e.notification.data?.url || "./";
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((abertas) => {
     const aberta = abertas.find((c) => c.url.startsWith(self.registration.scope));
-    return aberta ? aberta.focus() : self.clients.openWindow(alvo);
+    if (!aberta) return self.clients.openWindow(alvo);
+    // App já aberto: avisa qual tela abrir (ex.: #admin no pedido de casa).
+    if (alvo.includes("#")) aberta.postMessage({ abrir: alvo.split("#")[1] });
+    return aberta.focus();
   }));
 });

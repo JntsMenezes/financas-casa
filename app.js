@@ -324,6 +324,8 @@ async function verAdmin() {
   const { data } = await sb.rpc("sou_admin");
   estado.admin = data === true;
   if (!estado.admin) return;
+  // Veio da notificação de pedido de casa: abre direto a Administração.
+  if (location.hash === "#admin") { history.replaceState(null, "", location.pathname); $("btn-admin").click(); return; }
   const r = await sb.rpc("admin_visao");
   const n = (r.data?.pedidos || []).filter((p) => p.status === "pendente").length;
   if (n) avisar(n > 1 ? `${n} pedidos de casa esperando. Veja em Ajustes > Administração.` : "1 pedido de casa esperando. Veja em Ajustes > Administração.");
@@ -3230,6 +3232,10 @@ async function compartilharConvite(codigo) {
 }
 
 // ---------- Administração (só o admin; o banco confere de novo em cada função) ----------
+
+navigator.serviceWorker?.addEventListener("message", (e) => {
+  if (e.data?.abrir === "admin" && estado.admin) $("btn-admin").click();
+});
 
 $("btn-admin").onclick = () => {
   $("admin-corpo").innerHTML = '<div class="carregando">Carregando…</div>';
