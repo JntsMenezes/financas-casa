@@ -318,6 +318,7 @@ async function abrirCasa() {
   await enviarFila();
   manterSeries();
   verAdmin();
+  sb.rpc("marcar_visto").then(() => {}, () => {});
 }
 
 async function verAdmin() {
@@ -837,6 +838,11 @@ function haQuanto(ts) {
 }
 
 // "juntos ON" só com os dois de app aberto; "ON" quando é um só.
+// Casa de uma pessoa só ("Só eu"): o app fala com "você" em vez de "vocês".
+function sozinho() { return estado.membros.size < 2 && !!estado.casa?.so_eu; }
+const vc = (plural, singular) => (sozinho() ? singular : plural);
+const cxNos = () => (sozinho() ? "Para mim" : "Nós");
+
 function seloHtml(pessoas = estado.membros.size) {
   const conectado = navigator.onLine && estado.aoVivo;
   const txt = !navigator.onLine ? "sem internet" : !estado.aoVivo ? "conectando"
@@ -927,7 +933,7 @@ function render() {
     titulo = `Hoje, ${nBrl(naConta, "hoje")}.<span class="l2">Dia ${dia}, ${nBrl(fimMes, "fim")}.</span>`;
     const partes = [aPagar && `faltam pagar <b class="num">${brl.format(aPagar)}</b>`, aReceber && `entrar <b class="num">${brl.format(aReceber)}</b>`].filter(Boolean);
     apoio = (partes.length ? `Até lá ${partes.join(" e ")}` : doMes.length ? "Tudo do mês já tem check" : `Nada lançado em ${nomeDoMes(mes)} ainda`) +
-      (guardado > 0 ? `, e vocês guardam <b class="num">${brl.format(guardado)}</b>.` : ".") + aperto(pts, hj, entradas);
+      (guardado > 0 ? `, e ${vc("vocês guardam", "você guarda")} <b class="num">${brl.format(guardado)}</b>.` : ".") + aperto(pts, hj, entradas);
   } else {
     titulo = mes > mesAtual
       ? `Hoje, ${nBrl(naConta, "hoje")}.<span class="l2">Dia ${dia}, ${nBrl(fimMes, "fim")}.</span>`
@@ -1853,7 +1859,7 @@ function abrirResumo() {
   const pPagar = soma(pend, "despesa"), pReceber = soma(pend, "receita");
 
   const frases = [`Em ${nome} entram <b class="num">${brl.format(ent)}</b> e saem <b class="num">${brl.format(sai)}</b>.`,
-    ...(guardou > 0 ? [`Vocês guardam <b class="num">${brl.format(guardou)}</b> nas caixinhas${ent > 0 ? ` (${Math.round((guardou / ent) * 100)}% do que entra)` : ""}.`]
+    ...(guardou > 0 ? [`${vc("Vocês guardam", "Você guarda")} <b class="num">${brl.format(guardou)}</b> nas caixinhas${ent > 0 ? ` (${Math.round((guardou / ent) * 100)}% do que entra)` : ""}.`]
       : guardou < 0 ? [`Voltam <b class="num">${brl.format(-guardou)}</b> das caixinhas para a conta.`] : []),
     `${sobra >= 0 ? "Sobram" : "Faltam"} <b class="num" style="color:var(${sobra >= 0 ? "--verde" : "--vermelho"})">${brl.format(Math.abs(sobra))}</b> no mês${guardou > 0 ? ", depois de guardar" : ""}.`];
   if (saiAnt > 0) {
@@ -1983,7 +1989,7 @@ function renderCaixinhas() {
   const lista = caixinhasAtivas(), alvo = $("lista-caixinhas");
   if (!lista.length) {
     alvo.innerHTML = `<p class="nota" style="margin-top:-6px">Cada caixinha separa um dinheiro guardado. Guardar tira da conta, mas não entra como gasto no resumo. Resgatar devolve para a conta.</p>
-      <div class="cx-sugeridas">${[["escudo", "Reserva de emergência"], ["crianca", "Filhos"], ["coracao", "Nós"]]
+      <div class="cx-sugeridas">${[["escudo", "Reserva de emergência"], ["crianca", "Filhos"], ["coracao", cxNos()]]
         .map(([i, n]) => `<span class="cx-chip">${caixaIcone(i)}${n}</span>`).join("")}</div>
       <button class="btn" type="button" data-criar-sugeridas>Criar essas 3 caixinhas</button>
       <button class="btn texto" type="button" data-nova-caixa>Criar outra caixinha</button>`;
@@ -2035,7 +2041,7 @@ $("lista-caixinhas").addEventListener("click", async (e) => {
   if (!b) return;
   b.disabled = true;
   const media = gastoMedioMensal();
-  const linhas = [["Reserva de emergência", "escudo", media ? Math.round(media.valor * 6 / 100) * 100 : null], ["Filhos", "crianca", null], ["Nós", "coracao", null]]
+  const linhas = [["Reserva de emergência", "escudo", media ? Math.round(media.valor * 6 / 100) * 100 : null], ["Filhos", "crianca", null], [cxNos(), "coracao", null]]
     .map(([nome, icone, objetivo], i) => ({ id: crypto.randomUUID(), casa_id: estado.casa.id, nome, icone, objetivo, ordem: i }));
   const { error } = await sb.from("caixinhas").insert(linhas);
   if (error) { b.disabled = false; avisar(msgErro(error)); return; }
@@ -2085,7 +2091,7 @@ function previaCaixa() {
   sug.hidden = !(pareceEmergencia && media);
   if (!sug.hidden) {
     const seis = Math.round(media.valor * 6 / 100) * 100;
-    sug.innerHTML = `Vocês gastam em média <b class="num">${brl.format(media.valor)}</b> por mês (${media.meses} ${media.meses === 1 ? "mês" : "meses"}). A reserva costuma ser de 6 meses: <button class="link" type="button" data-usar-seis="${seis}">usar ${brl.format(seis)}</button>`;
+    sug.innerHTML = `${vc("Vocês gastam", "Você gasta")} em média <b class="num">${brl.format(media.valor)}</b> por mês (${media.meses} ${media.meses === 1 ? "mês" : "meses"}). A reserva costuma ser de 6 meses: <button class="link" type="button" data-usar-seis="${seis}">usar ${brl.format(seis)}</button>`;
   }
   const p = $("caixa-previa"), falta = Number.isFinite(obj) && obj > 0 ? Math.max(0, obj - atual) : 0;
   const linhas = [];
@@ -2423,7 +2429,7 @@ function renderPlano() {
       <input class="num" inputmode="decimal" id="plano-dia" placeholder="0,00" value="${dia ? mostrarValor(estado.diaADia) : ""}" aria-label="Gasto do dia a dia por mês">
     </label>
     ${med && med.valor !== estado.diaADia ? `<button class="link" type="button" data-usar-media="${med.valor}">Usar a média real (${brl.format(med.valor)})</button>` : ""}
-    <p class="nota">Mercado extra, farmácia, lazer, presentes: o que vocês lançam à mão. Entra só aqui, não vira lançamento.</p>
+    <p class="nota">Mercado extra, farmácia, lazer, presentes: o que ${vc("vocês lançam", "você lança")} à mão. Entra só aqui, não vira lançamento.</p>
     ${estado.descontos ? `
     <h3 class="sub">Descontos no holerite</h3>
     ${descontos.length ? `<div class="lista lista-plana">${descontos.map((d) => `<div class="linha-simples">
@@ -2616,7 +2622,7 @@ function renderAno() {
 
   const frases = [
     `Em ${ano} entram <b class="num">${brl.format(tot.ent)}</b> e vão para gastos <b class="num">${brl.format(tot.gasto)}</b>.`,
-    tot.guardou > 0 ? `Vocês guardam <b class="num">${brl.format(tot.guardou)}</b> nas caixinhas, ${pct(tot.guardou, tot.ent)}% do que entra.` : "Ainda não há nada guardado nas caixinhas neste ano.",
+    tot.guardou > 0 ? `${vc("Vocês guardam", "Você guarda")} <b class="num">${brl.format(tot.guardou)}</b> nas caixinhas, ${pct(tot.guardou, tot.ent)}% do que entra.` : "Ainda não há nada guardado nas caixinhas neste ano.",
     `${tot.sobra >= 0 ? "Sobram" : "Faltam"} <b class="num" style="color:var(${tot.sobra >= 0 ? "--verde" : "--vermelho"})">${brl.format(Math.abs(tot.sobra))}</b> no ano${tot.guardou > 0 ? ", depois de guardar" : ""}.`,
     `<span class="nota">${meses.length} ${meses.length === 1 ? "mês" : "meses"} com lançamentos${previstos ? `, ${previstos} ainda ${previstos === 1 ? "previsto" : "previstos"}` : ""}. Conta também o que ainda não tem check.</span>`,
   ];
@@ -2658,7 +2664,7 @@ function renderAno() {
           <span class="desc cx-ano">${esc(c.nome)}<span class="quando num">${feito || previsto ? [feito && `${brl.format(feito)} guardados em ${ano}`, previsto && `${brl.format(previsto)} previstos`].filter(Boolean).join(" + ") : `nada em ${ano}`}${p.obj ? ` · ${p.falta ? `faltam ${brl.format(p.falta)}` : "objetivo alcançado"}` : ""}</span></span>
           <b class="num">${brl.format(p.atual)}</b></button>`;
       }).join("")}</div>`
-    : `<button class="linha-resumo" type="button" data-ano-caixinhas>${caixaIcone("cofre")}<span>Criar as caixinhas (emergência, filhos, nós)</span>${IC.ir}</button>`;
+    : `<button class="linha-resumo" type="button" data-ano-caixinhas>${caixaIcone("cofre")}<span>Criar as caixinhas (emergência, filhos, ${cxNos().toLowerCase()})</span>${IC.ir}</button>`;
 
   corpo.innerHTML = `
     <div class="frases">${frases.map((f) => `<p>${f}</p>`).join("")}</div>
@@ -2685,7 +2691,7 @@ function analiseAno(ano, meses, tot, cats) {
   out.push({
     tom: taxa >= 0.15 ? "bom" : taxa >= 0.05 ? "atencao" : "ruim",
     linhas: [
-      `Vocês guardam ${pct(tot.guardou, tot.ent)}% do que entra.`,
+      `${vc("Vocês guardam", "Você guarda")} ${pct(tot.guardou, tot.ent)}% do que entra.`,
       taxa >= 0.15 ? "Está dentro da faixa que costuma ser recomendada, de 10% a 20%."
         : `Uma meta comum é guardar de 10% a 20%. Com 10%, seriam ${b(entMedia * 0.1)} por mês.`,
     ],
@@ -3237,7 +3243,7 @@ $("btn-convidar").onclick = async () => {
 
 async function compartilharConvite(codigo) {
   const link = location.origin + location.pathname;
-  const texto = `Te convidei para o Finanças da Casa. Abra ${link}, crie sua conta e use o código ${codigo}. Ele cria uma casa só sua: ninguém daqui vê os seus valores.`;
+  const texto = `Te convidei para o Finanças da Casa. Abra ${link}, crie sua conta e digite o código ${codigo}. Ele abre uma casa só sua, e ninguém das outras casas vê nada dela. Eu cuido do app e consigo acessar o banco de dados, mas não olho os dados de ninguém.`;
   try {
     if (navigator.share) await navigator.share({ title: "Finanças da Casa", text: texto });
     else { await navigator.clipboard.writeText(texto); avisar(`Convite ${codigo} copiado. Cole no WhatsApp.`); }
@@ -3267,11 +3273,17 @@ async function renderAdmin() {
   const conviteHtml = (c) => `<div class="adm-item"><span class="adm-codigo">${esc(c.codigo)}</span>
     <small>${c.usado_em ? `Usado por ${esc(c.usado_por || "alguém")} ${quando(c.usado_em)}` : `Sem uso · criado ${quando(c.criado_em)}`}</small>
     ${c.usado_em ? "" : `<div class="adm-acoes"><button class="btn sec" type="button" data-adm-enviar="${esc(c.codigo)}">Enviar</button><button class="btn texto perigo" type="button" data-adm-cancelar="${esc(c.codigo)}">Cancelar</button></div>`}</div>`;
+  const dias = (ts) => Math.floor((Date.now() - new Date(ts)) / 864e5);
   const casaHtml = (c) => {
     const nomes = c.membros.map((m) => m.nome || m.email || "?").join(" e ") || "Sem ninguém";
-    return `<div class="adm-item"><b>${esc(nomes)}${c.minha ? " · sua casa" : ""}</b>
-      <small>Desde ${dataCurta(c.criado_em.slice(0, 10))}/${c.criado_em.slice(2, 4)} · ${c.membros.length === 1 ? "1 pessoa" : c.membros.length + " pessoas"} · ${c.lancamentos} ${c.lancamentos === 1 ? "lançamento" : "lançamentos"}</small>
-      <small>${c.ultimo_uso ? "Último lançamento mexido " + quando(c.ultimo_uso) : "Nenhum lançamento ainda"}</small></div>`;
+    const parado = c.visto_em ? dias(c.visto_em) : null;
+    const visto = c.visto_em ? (parado === 0 ? "Abriu o app hoje" : `Abriu o app há ${parado} ${parado === 1 ? "dia" : "dias"}`) : "Ainda não abriu desde que isso passou a ser contado";
+    return `<div class="adm-item"><b>${esc(c.apelido || nomes)}${c.minha ? " · sua casa" : ""}</b>
+      ${c.apelido ? `<small>${esc(nomes)}</small>` : ""}
+      <small>Desde ${dataCurta(c.criado_em.slice(0, 10))}/${c.criado_em.slice(2, 4)} · ${c.so_eu && c.membros.length < 2 ? "só uma pessoa" : c.membros.length === 1 ? "1 pessoa" : c.membros.length + " pessoas"} · ${c.lancamentos} ${c.lancamentos === 1 ? "lançamento" : "lançamentos"}</small>
+      <small class="${parado !== null && parado > 30 ? "adm-parado" : ""}">${visto}${parado !== null && parado > 30 ? " · parada há mais de 30 dias" : ""}</small>
+      <div class="adm-acoes"><button class="btn texto" type="button" data-adm-nomear="${c.id}" data-atual="${esc(c.apelido || "")}">${c.apelido ? "Trocar nome" : "Dar um nome"}</button></div>
+      <form class="linha-nome adm-nome" data-adm-form="${c.id}" hidden><input maxlength="40" placeholder="Ex.: Ana" aria-label="Nome da casa"><button class="btn" type="submit">Salvar</button></form></div>`;
   };
   const decididos = data.pedidos.filter((p) => p.status !== "pendente");
   $("admin-corpo").innerHTML = `
@@ -3283,6 +3295,14 @@ async function renderAdmin() {
     ${decididos.length ? `<section class="adm-sec"><h3>Pedidos já decididos</h3><div class="lista">${decididos.map((p) => `<div class="adm-item"><b>${esc(p.nome || p.email || "Sem nome")}</b><small>${p.status === "aprovado" ? "Aprovado" : "Recusado"} ${quando(p.decidido_em)}</small></div>`).join("")}</div></section>` : ""}`;
 }
 
+$("admin-corpo").addEventListener("submit", async (e) => {
+  const f = e.target.closest("[data-adm-form]");
+  if (!f) return;
+  e.preventDefault();
+  const { error } = await sb.rpc("admin_dar_nome", { p_casa: f.dataset.admForm, p_apelido: f.querySelector("input").value });
+  if (error) { avisar(msgErro(error)); return; }
+  renderAdmin();
+});
 $("admin-corpo").addEventListener("click", async (e) => {
   const b = e.target.closest("button");
   if (!b) return;
@@ -3296,6 +3316,12 @@ $("admin-corpo").addEventListener("click", async (e) => {
     return;
   }
   if (b.dataset.admEnviar) { compartilharConvite(b.dataset.admEnviar); return; }
+  if (b.dataset.admNomear) {
+    const f = $("admin-corpo").querySelector(`[data-adm-form="${b.dataset.admNomear}"]`);
+    f.hidden = false; b.hidden = true;
+    f.querySelector("input").value = b.dataset.atual; f.querySelector("input").focus();
+    return;
+  }
   let r;
   if (b.dataset.admCancelar) {
     if (!(await confirmar("Cancelar o convite?", `O código ${b.dataset.admCancelar} deixa de funcionar.`, "Cancelar convite"))) return;
@@ -3335,7 +3361,7 @@ $("foto-arquivo").onchange = async (e) => {
   const arq = e.target.files?.[0];
   e.target.value = "";
   if (!arq) return;
-  try { await salvarFoto(arq); avisar("Foto salva. A outra pessoa vê na próxima vez que abrir."); }
+  try { await salvarFoto(arq); avisar(estado.membros.size < 2 ? "Foto salva." : "Foto salva. A outra pessoa vê na próxima vez que abrir."); }
   catch (err) { avisar(/definir_minha_foto/.test(err.message || "") ? "Falta atualizar o banco (13_foto.sql)." : "Não consegui usar essa foto. Tente outra."); }
 };
 $("ajustes-tirar-foto").onclick = async () => {

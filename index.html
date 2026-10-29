@@ -444,6 +444,12 @@
   .adm-acoes .btn { min-height: 40px; padding: 0 14px; width: auto; font-size: 14px; }
   .adm-codigo { font-weight: 700; letter-spacing: .06em; font-variant-numeric: tabular-nums; }
   .adm-sec .nada { padding: 14px; color: var(--muted); font-size: 14px; }
+  .adm-item small.adm-parado { color: var(--aviso-atencao); }
+  .adm-item .btn.texto { min-height: 36px; padding: 0; }
+  .adm-nome { margin-top: 6px; }
+  .adm-nome input { width: 0; flex: 1; }
+  .seus-dados { margin: 18px 2px 0; line-height: 1.45; }
+  .seus-dados b { color: var(--ink); }
   .linha-nome { display: flex; gap: 8px; margin: -8px 0 16px; }
   .linha-nome input { flex: 1; min-width: 0; font-size: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--campo); outline: none; }
   .linha-nome input:focus { border-color: var(--primaria); box-shadow: 0 0 0 3px var(--primaria-bg); }
@@ -769,7 +775,7 @@
     <div class="erro" id="casa-erro" role="alert"></div>
     <button class="btn" type="submit">Entrar</button>
     <div class="pedir-casa" id="casa-pedir-bloco">
-      <p>Não recebeu código? Peça uma casa. Quando o pedido for aprovado, o app abre a sua casa.</p>
+      <p>Não recebeu código? Peça uma casa. Quando o pedido for aprovado, o app abre a sua casa. Quem cuida do app aprova o pedido e vê só o seu nome e e-mail, nunca os seus valores.</p>
       <button class="btn sec" type="button" id="casa-pedir-abrir">Pedir uma casa</button>
     </div>
     <div class="pedir-casa" id="form-pedir" hidden>
@@ -896,7 +902,7 @@
     <input id="ajustes-nome" maxlength="40" autocomplete="given-name" placeholder="Ex.: Jonatas">
     <button class="btn" type="button" id="ajustes-salvar-nome">Salvar</button>
   </div>
-  <div class="campo"><span>Sua foto (aparece no topo, para os dois)</span></div>
+  <div class="campo"><span>Sua foto (aparece no topo)</span></div>
   <div class="linha-foto">
     <span id="ajustes-foto"></span>
     <button class="btn" type="button" id="ajustes-escolher-foto">Escolher foto</button>
@@ -933,6 +939,7 @@
     <button class="btn texto" type="button" id="btn-sair">Sair da conta</button>
     <button class="btn texto perigo" type="button" id="btn-excluir-conta">Excluir minha conta</button>
   </div>
+  <p class="nota seus-dados"><b>Seus dados.</b> Cada casa só vê os próprios dados. Quem cuida do app consegue acessar o banco de dados, como em qualquer serviço on-line, mas não olha os dados de ninguém. Se você for a última pessoa da casa, excluir a conta apaga tudo dela.</p>
   <div style="text-align:center;color:var(--muted);font-size:12.5px;margin-top:8px" id="ajustes-email"></div>
 </div>
 
@@ -969,7 +976,7 @@
 <div class="painel" id="painel-limites" hidden>
   <div class="alca" aria-hidden="true"></div>
   <h2>Limites por mês</h2>
-  <p class="nota" style="margin-top:-8px">Quanto vocês querem gastar por mês em cada categoria. Deixe vazio para não ter limite. O app avisa quando chegar a 85%.</p>
+  <p class="nota" style="margin-top:-8px">Quanto gastar por mês em cada categoria. Deixe vazio para não ter limite. O app avisa quando chegar a 85%.</p>
   <div id="lista-limites"></div>
 </div>
 

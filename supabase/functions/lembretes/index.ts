@@ -75,6 +75,15 @@ async function resumo(sb: SupabaseClient): Promise<Map<string, Aviso>> {
   const porCasa = new Map<string, Lanc[]>();
   for (const l of todos) { if (!porCasa.has(l.casa_id)) porCasa.set(l.casa_id, []); porCasa.get(l.casa_id)!.push(l); }
 
+  // Casa de uma pessoa só ("Só eu" e ninguém mais entrou): o resumo fala com "você".
+  const { data: cs, error: eCs } = await sb.from("casas").select("id, so_eu");
+  if (eCs) throw eCs;
+  const { data: ms, error: eMs } = await sb.from("membros").select("casa_id");
+  if (eMs) throw eMs;
+  const pessoas = new Map<string, number>();
+  for (const m of ms ?? []) pessoas.set(m.casa_id, (pessoas.get(m.casa_id) || 0) + 1);
+  const sozinha = new Set((cs ?? []).filter((c) => c.so_eu && (pessoas.get(c.id) || 0) < 2).map((c) => c.id as string));
+
   const avisos = new Map<string, Aviso>();
   for (const [casa, ls] of porCasa) {
     const gasto = (l: Lanc) => l.tipo === "despesa" && !l.caixinha_id;
@@ -116,7 +125,7 @@ async function resumo(sb: SupabaseClient): Promise<Map<string, Aviso>> {
         : media !== null ? ", perto da média" : "");
     const linhas = [
       maior && gastos > 0 ? `Mais foi para ${maior[0]} (${redondo.format(maior[1])}).` : "",
-      guardou > 0 ? `Vocês guardaram ${redondo.format(guardou)}.` : "",
+      guardou > 0 ? `${sozinha.has(casa) ? "Você guardou" : "Vocês guardaram"} ${redondo.format(guardou)}.` : "",
       vence > 0 ? `Na próxima semana vencem ${redondo.format(vence)}.` : "Na próxima semana não vence nada sem check.",
       apertado && apertado.saldo < 0
         ? `O saldo fica negativo na ${diaSemana(apertado.data)} ${Number(apertado.data.slice(8))}: ${brl.format(apertado.saldo)}.`
