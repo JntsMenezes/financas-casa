@@ -307,9 +307,9 @@ async function abrirCasa() {
   const { data, error } = await sb.from("membros").select("casa_id, casas(id, nome, codigo)").limit(1);
   if (error) {
     if (cache) { avisar(ehErroRede(error) ? `Sem internet. Mostrando os dados de ${quando(cache.quando)}.` : msgErro(error)); return; }
-    avisar(msgErro(error)); mostrarTela("tela-casa"); return;
+    avisar(msgErro(error)); mostrarTelaCasa(); return;
   }
-  if (!data.length) { limparCache(); mostrarTela("tela-casa"); return; }
+  if (!data.length) { limparCache(); mostrarTelaCasa(); return; }
   estado.casa = data[0].casas;
   mostrarTela("tela-app");
   await carregarMembros();
@@ -317,7 +317,54 @@ async function abrirCasa() {
   assinarMudancas();
   await enviarFila();
   manterSeries();
+  verAdmin();
 }
+
+async function verAdmin() {
+  const { data } = await sb.rpc("sou_admin");
+  estado.admin = data === true;
+  if (!estado.admin) return;
+  const r = await sb.rpc("admin_visao");
+  const n = (r.data?.pedidos || []).filter((p) => p.status === "pendente").length;
+  if (n) avisar(n > 1 ? `${n} pedidos de casa esperando. Veja em Ajustes > Administração.` : "1 pedido de casa esperando. Veja em Ajustes > Administração.");
+}
+
+// Tela de entrada sem casa: código, ou pedido de casa (e como ele está).
+async function mostrarTelaCasa() {
+  mostrarTela("tela-casa");
+  const { data } = await sb.from("pedidos_casa").select("status, criado_em, decidido_em").limit(1);
+  const p = data?.[0];
+  mostrarPedido(p);
+}
+function mostrarPedido(p) {
+  $("form-pedir").hidden = true;
+  $("casa-pedir-bloco").hidden = !!p && p.status !== "recusado";
+  $("casa-pedido-estado").hidden = !p;
+  if (!p) return;
+  $("casa-pedido-txt").textContent = p.status === "recusado"
+    ? "O pedido de casa foi recusado. Dá para pedir de novo depois de 7 dias."
+    : `Pedido enviado ${quando(p.criado_em)}. Quando for aprovado, a sua casa abre aqui.`;
+  $("casa-pedido-ver").hidden = p.status === "recusado";
+}
+$("casa-pedir-abrir").onclick = () => {
+  $("casa-pedir-bloco").hidden = true;
+  $("form-pedir").hidden = false;
+  $("pedir-nome").focus();
+};
+$("pedir-enviar").onclick = async (ev) => {
+  const btn = ev.currentTarget;
+  $("pedir-erro").textContent = "";
+  if (!$("pedir-nome").value.trim()) { $("pedir-erro").textContent = "Escreva seu nome."; return; }
+  btn.disabled = true;
+  const { data, error } = await sb.rpc("pedir_casa", { p_nome: $("pedir-nome").value, p_mensagem: $("pedir-msg").value });
+  btn.disabled = false;
+  if (error) { $("pedir-erro").textContent = msgErro(error); return; }
+  if (data === "aprovado") { abrirCasa(); return; }
+  mostrarPedido({ status: "pendente", criado_em: new Date().toISOString() });
+};
+$("casa-pedido-ver").onclick = () => abrirCasa();
+// Enter no pedido envia o pedido (não o formulário do código).
+for (const id of ["pedir-nome", "pedir-msg"]) $(id).addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("pedir-enviar").click(); } });
 
 // Gera os próximos meses das contas fixas "sem data para acabar".
 async function manterSeries() {
@@ -1234,7 +1281,7 @@ window.addEventListener("scroll", () => {
 
 // ---------- painéis ----------
 
-const PAINEIS = ["painel-conferir", "painel-lanc", "painel-ajustes", "painel-historico", "painel-series", "painel-resumo", "painel-busca", "painel-limites", "painel-caixinhas", "painel-caixa", "painel-mov", "painel-ano", "painel-plano"];
+const PAINEIS = ["painel-conferir", "painel-lanc", "painel-ajustes", "painel-historico", "painel-series", "painel-resumo", "painel-busca", "painel-limites", "painel-caixinhas", "painel-caixa", "painel-mov", "painel-ano", "painel-plano", "painel-admin"];
 function abrirPainel(p) {
   fecharPaineis(true);
   $("fundo").hidden = false;
@@ -3068,6 +3115,7 @@ $("abrir-ajustes").onclick = () => {
   $("ajustes-nome").value = estado.membros.get(estado.sessao?.user?.id)?.nome || "";
   preencherFotoAjustes();
   $("btn-limites").hidden = !estado.limites;
+  $("btn-admin").hidden = !estado.admin;
   mostrarLembretes();
   aplicarTema(temaAtual());
   abrirPainel($("painel-ajustes"));
@@ -3172,19 +3220,78 @@ $("btn-convidar").onclick = async () => {
   } catch (e) { /* compartilhamento cancelado */ }
 };
 
-$("btn-convidar-familia").onclick = async (ev) => {
-  const btn = ev.currentTarget;
-  btn.disabled = true;
-  const { data, error } = await sb.rpc("gerar_convite_casa");
-  btn.disabled = false;
-  if (error) { avisar(msgErro(error)); return; }
+async function compartilharConvite(codigo) {
   const link = location.origin + location.pathname;
-  const texto = `Te convidei para o Finanças da Casa. Abra ${link}, crie sua conta e use o código ${data}. Ele cria uma casa só sua: ninguém daqui vê os seus dados.`;
+  const texto = `Te convidei para o Finanças da Casa. Abra ${link}, crie sua conta e use o código ${codigo}. Ele cria uma casa só sua: ninguém daqui vê os seus valores.`;
   try {
     if (navigator.share) await navigator.share({ title: "Finanças da Casa", text: texto });
-    else { await navigator.clipboard.writeText(texto); avisar(`Convite ${data} copiado. Cole no WhatsApp.`); }
+    else { await navigator.clipboard.writeText(texto); avisar(`Convite ${codigo} copiado. Cole no WhatsApp.`); }
   } catch (e) { /* compartilhamento cancelado */ }
+}
+
+// ---------- Administração (só o admin; o banco confere de novo em cada função) ----------
+
+$("btn-admin").onclick = () => {
+  $("admin-corpo").innerHTML = '<div class="carregando">Carregando…</div>';
+  abrirPainel($("painel-admin"));
+  renderAdmin();
 };
+
+async function renderAdmin() {
+  const { data, error } = await sb.rpc("admin_visao");
+  if (error) { $("admin-corpo").innerHTML = `<div class="vazio">${esc(msgErro(error))}</div>`; return; }
+  const pend = data.pedidos.filter((p) => p.status === "pendente");
+  const pedidoHtml = (p) => `<div class="adm-item"><b>${esc(p.nome || p.email || "Sem nome")}</b>
+    <small>${esc(p.email || "")} · pediu ${quando(p.criado_em)}</small>
+    ${p.mensagem ? `<span class="msg">${esc(p.mensagem)}</span>` : ""}
+    <div class="adm-acoes"><button class="btn" type="button" data-adm-aprovar="${p.id}">Aprovar</button><button class="btn sec" type="button" data-adm-recusar="${p.id}">Recusar</button></div></div>`;
+  const conviteHtml = (c) => `<div class="adm-item"><span class="adm-codigo">${esc(c.codigo)}</span>
+    <small>${c.usado_em ? `Usado por ${esc(c.usado_por || "alguém")} ${quando(c.usado_em)}` : `Sem uso · criado ${quando(c.criado_em)}`}</small>
+    ${c.usado_em ? "" : `<div class="adm-acoes"><button class="btn sec" type="button" data-adm-enviar="${esc(c.codigo)}">Enviar</button><button class="btn texto perigo" type="button" data-adm-cancelar="${esc(c.codigo)}">Cancelar</button></div>`}</div>`;
+  const casaHtml = (c) => {
+    const nomes = c.membros.map((m) => m.nome || m.email || "?").join(" e ") || "Sem ninguém";
+    return `<div class="adm-item"><b>${esc(nomes)}${c.minha ? " · sua casa" : ""}</b>
+      <small>Desde ${dataCurta(c.criado_em.slice(0, 10))}/${c.criado_em.slice(2, 4)} · ${c.membros.length === 1 ? "1 pessoa" : c.membros.length + " pessoas"} · ${c.lancamentos} ${c.lancamentos === 1 ? "lançamento" : "lançamentos"}</small>
+      <small>${c.ultimo_uso ? "Último lançamento mexido " + quando(c.ultimo_uso) : "Nenhum lançamento ainda"}</small></div>`;
+  };
+  const decididos = data.pedidos.filter((p) => p.status !== "pendente");
+  $("admin-corpo").innerHTML = `
+    <section class="adm-sec"><h3>Pedidos esperando</h3><div class="lista">${pend.length ? pend.map(pedidoHtml).join("") : '<div class="nada">Nenhum pedido esperando.</div>'}</div></section>
+    <section class="adm-sec"><h3>Convites de casa nova</h3>
+      <button class="btn" type="button" id="adm-novo-convite" style="margin-bottom:10px">Criar convite e enviar</button>
+      ${data.convites.length ? `<div class="lista">${data.convites.map(conviteHtml).join("")}</div>` : ""}</section>
+    <section class="adm-sec"><h3>Casas (${data.casas.length})</h3><div class="lista">${data.casas.map(casaHtml).join("")}</div></section>
+    ${decididos.length ? `<section class="adm-sec"><h3>Pedidos já decididos</h3><div class="lista">${decididos.map((p) => `<div class="adm-item"><b>${esc(p.nome || p.email || "Sem nome")}</b><small>${p.status === "aprovado" ? "Aprovado" : "Recusado"} ${quando(p.decidido_em)}</small></div>`).join("")}</div></section>` : ""}`;
+}
+
+$("admin-corpo").addEventListener("click", async (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.id === "adm-novo-convite") {
+    b.disabled = true;
+    const { data, error } = await sb.rpc("gerar_convite_casa");
+    b.disabled = false;
+    if (error) { avisar(msgErro(error)); return; }
+    await renderAdmin();
+    compartilharConvite(data);
+    return;
+  }
+  if (b.dataset.admEnviar) { compartilharConvite(b.dataset.admEnviar); return; }
+  let r;
+  if (b.dataset.admCancelar) {
+    if (!(await confirmar("Cancelar o convite?", `O código ${b.dataset.admCancelar} deixa de funcionar.`, "Cancelar convite"))) return;
+    r = await sb.rpc("admin_cancelar_convite", { p_codigo: b.dataset.admCancelar });
+  } else if (b.dataset.admAprovar) {
+    b.disabled = true;
+    r = await sb.rpc("admin_decidir_pedido", { p_id: b.dataset.admAprovar, p_aprovar: true });
+    if (!r.error) avisar("Aprovado. A casa abre quando a pessoa entrar no app.");
+  } else if (b.dataset.admRecusar) {
+    if (!(await confirmar("Recusar o pedido?", "A pessoa só pode pedir de novo depois de 7 dias.", "Recusar"))) return;
+    r = await sb.rpc("admin_decidir_pedido", { p_id: b.dataset.admRecusar, p_aprovar: false });
+  } else return;
+  if (r.error) { b.disabled = false; avisar(msgErro(r.error)); return; }
+  renderAdmin();
+});
 
 $("ajustes-escolher-foto").onclick = () => $("foto-arquivo").click();
 $("painel-ajustes").addEventListener("click", (e) => { if (e.target.closest("[data-minha-foto]")) $("foto-arquivo").click(); });

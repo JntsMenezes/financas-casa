@@ -430,8 +430,20 @@
   .info-casa > div { flex: 1; min-width: 0; }
   .codigo { font-size: 22px; font-weight: 650; letter-spacing: .14em; margin-top: 2px; }
   .info-casa .btn { width: auto; min-height: 44px; padding: 0 16px; }
-  .info-casa:has(+ .convidar-familia) { margin-bottom: 10px; }
-  .convidar-nota { margin: 6px 2px 18px; }
+  .pedir-casa { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .pedir-casa p { margin: 0 0 12px; }
+  #form-casa > .btn.texto { margin-top: 14px; }
+  .adm-sec { margin-top: 20px; }
+  .adm-sec h3 { margin: 0 2px 8px; font-size: 14px; font-weight: 700; color: var(--muted); }
+  .adm-item { padding: 12px 14px; border-top: 1px solid var(--line); display: grid; gap: 4px; font-size: 14px; }
+  .adm-item:first-child { border-top: 0; }
+  .adm-item b { font-weight: 650; font-size: 15px; }
+  .adm-item small { color: var(--muted); font-size: 13px; line-height: 1.4; }
+  .adm-item .msg { color: var(--ink); font-size: 14px; }
+  .adm-acoes { display: flex; gap: 8px; margin-top: 6px; }
+  .adm-acoes .btn { min-height: 40px; padding: 0 14px; width: auto; font-size: 14px; }
+  .adm-codigo { font-weight: 700; letter-spacing: .06em; font-variant-numeric: tabular-nums; }
+  .adm-sec .nada { padding: 14px; color: var(--muted); font-size: 14px; }
   .linha-nome { display: flex; gap: 8px; margin: -8px 0 16px; }
   .linha-nome input { flex: 1; min-width: 0; font-size: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--campo); outline: none; }
   .linha-nome input:focus { border-color: var(--primaria); box-shadow: 0 0 0 3px var(--primaria-bg); }
@@ -756,7 +768,21 @@
     <label class="campo"><span>Código</span><input id="casa-codigo" autocapitalize="characters" autocomplete="off" maxlength="12" required></label>
     <div class="erro" id="casa-erro" role="alert"></div>
     <button class="btn" type="submit">Entrar</button>
-    <button class="btn sec" type="button" id="casa-sair">Sair da conta</button>
+    <div class="pedir-casa" id="casa-pedir-bloco">
+      <p>Não recebeu código? Peça uma casa. Quando o pedido for aprovado, o app abre a sua casa.</p>
+      <button class="btn sec" type="button" id="casa-pedir-abrir">Pedir uma casa</button>
+    </div>
+    <div class="pedir-casa" id="form-pedir" hidden>
+      <label class="campo"><span>Seu nome</span><input id="pedir-nome" maxlength="60" autocomplete="given-name"></label>
+      <label class="campo"><span>Recado <small>(opcional)</small></span><textarea id="pedir-msg" rows="2" maxlength="200" placeholder="Ex.: sou a irmã da Ana"></textarea></label>
+      <div class="erro" id="pedir-erro" role="alert"></div>
+      <button class="btn" type="button" id="pedir-enviar">Enviar pedido</button>
+    </div>
+    <div class="pedir-casa" id="casa-pedido-estado" hidden>
+      <p id="casa-pedido-txt"></p>
+      <button class="btn sec" type="button" id="casa-pedido-ver">Ver se já foi aprovado</button>
+    </div>
+    <button class="btn texto" type="button" id="casa-sair">Sair da conta</button>
   </form>
 </section>
 
@@ -864,8 +890,7 @@
     </div>
     <button class="btn" type="button" id="btn-convidar">Convidar</button>
   </div>
-  <button class="btn sec convidar-familia" type="button" id="btn-convidar-familia">Convidar outra família</button>
-  <p class="nota convidar-nota">Ela ganha uma casa só dela. Ninguém de uma casa vê os dados da outra.</p>
+
   <div class="campo"><span>Seu nome (aparece no histórico)</span></div>
   <div class="linha-nome">
     <input id="ajustes-nome" maxlength="40" autocomplete="given-name" placeholder="Ex.: Jonatas">
@@ -899,6 +924,7 @@
     <button type="button" data-tema="dark">Escuro</button>
   </div>
   <div class="rodape-ajustes">
+    <button class="btn sec" type="button" id="btn-admin" hidden>Administração</button>
     <button class="btn sec" type="button" id="btn-historico">Histórico de alterações</button>
     <button class="btn sec" type="button" id="btn-series">Contas fixas</button>
     <button class="btn sec" type="button" id="btn-limites" hidden>Limites por categoria</button>
@@ -907,6 +933,14 @@
     <button class="btn texto" type="button" id="btn-sair">Sair da conta</button>
   </div>
   <div style="text-align:center;color:var(--muted);font-size:12.5px;margin-top:8px" id="ajustes-email"></div>
+</div>
+
+<!-- Administração (só o admin) -->
+<div class="painel" id="painel-admin" hidden>
+  <div class="alca" aria-hidden="true"></div>
+  <h2>Administração</h2>
+  <p class="nota" style="margin-top:-8px">Das outras casas aparecem só os dados gerais. Valores, descrições e saldo não aparecem.</p>
+  <div id="admin-corpo"><div class="carregando">Carregando…</div></div>
 </div>
 
 <!-- Histórico geral -->
