@@ -3130,6 +3130,7 @@ $("abrir-ajustes").onclick = () => {
   preencherFotoAjustes();
   $("btn-limites").hidden = !estado.limites;
   $("btn-admin").hidden = !estado.admin;
+  $("btn-excluir-conta").hidden = !!estado.admin;
   mostrarLembretes();
   aplicarTema(temaAtual());
   abrirPainel($("painel-ajustes"));
@@ -3310,6 +3311,23 @@ $("admin-corpo").addEventListener("click", async (e) => {
   if (r.error) { b.disabled = false; avisar(msgErro(r.error)); return; }
   renderAdmin();
 });
+
+// Excluir a própria conta. Última pessoa da casa: a casa e tudo dela somem junto.
+$("btn-excluir-conta").onclick = async () => {
+  const eu = estado.sessao?.user?.id;
+  const outro = [...estado.membros.entries()].find(([uid]) => uid !== eu)?.[1];
+  const texto = outro
+    ? `Você sai da casa e o seu login é apagado. A casa e os lançamentos continuam com ${outro.nome || "a outra pessoa"}.`
+    : "A casa é apagada junto, com todos os lançamentos, caixinhas e o histórico. Não dá para desfazer.";
+  if (!(await confirmar("Excluir sua conta?", texto, "Excluir conta"))) return;
+  if (!outro && !(await confirmar("Tem certeza?", "Depois de excluir, nada disso volta. Se quiser guardar, baixe a planilha (CSV) em Ajustes antes.", "Excluir tudo"))) return;
+  const { error } = await sb.rpc("excluir_minha_conta");
+  if (error) { avisar(msgErro(error)); return; }
+  fecharPaineis(true);
+  limparCache();
+  await sb.auth.signOut().catch(() => {});
+  avisar("Conta excluída.");
+};
 
 $("ajustes-escolher-foto").onclick = () => $("foto-arquivo").click();
 $("painel-ajustes").addEventListener("click", (e) => { if (e.target.closest("[data-minha-foto]")) $("foto-arquivo").click(); });
