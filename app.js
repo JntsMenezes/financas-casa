@@ -1934,9 +1934,9 @@ function renderCaixinhas() {
   const lista = caixinhasAtivas(), alvo = $("lista-caixinhas");
   if (!lista.length) {
     alvo.innerHTML = `<p class="nota" style="margin-top:-6px">Cada caixinha separa um dinheiro guardado. Guardar tira da conta, mas não entra como gasto no resumo. Resgatar devolve para a conta.</p>
-      <div class="cx-sugeridas">${[["escudo", "Reserva de emergência"], ["crianca", "Gael"], ["crianca", "Dante"], ["coracao", "Nós"]]
+      <div class="cx-sugeridas">${[["escudo", "Reserva de emergência"], ["crianca", "Filhos"], ["coracao", "Nós"]]
         .map(([i, n]) => `<span class="cx-chip">${caixaIcone(i)}${n}</span>`).join("")}</div>
-      <button class="btn" type="button" data-criar-sugeridas>Criar essas 4 caixinhas</button>
+      <button class="btn" type="button" data-criar-sugeridas>Criar essas 3 caixinhas</button>
       <button class="btn texto" type="button" data-nova-caixa>Criar outra caixinha</button>`;
     return;
   }
@@ -1986,7 +1986,7 @@ $("lista-caixinhas").addEventListener("click", async (e) => {
   if (!b) return;
   b.disabled = true;
   const media = gastoMedioMensal();
-  const linhas = [["Reserva de emergência", "escudo", media ? Math.round(media.valor * 6 / 100) * 100 : null], ["Gael", "crianca", null], ["Dante", "crianca", null], ["Nós", "coracao", null]]
+  const linhas = [["Reserva de emergência", "escudo", media ? Math.round(media.valor * 6 / 100) * 100 : null], ["Filhos", "crianca", null], ["Nós", "coracao", null]]
     .map(([nome, icone, objetivo], i) => ({ id: crypto.randomUUID(), casa_id: estado.casa.id, nome, icone, objetivo, ordem: i }));
   const { error } = await sb.from("caixinhas").insert(linhas);
   if (error) { b.disabled = false; avisar(msgErro(error)); return; }
@@ -2609,7 +2609,7 @@ function renderAno() {
           <span class="desc cx-ano">${esc(c.nome)}<span class="quando num">${feito || previsto ? [feito && `${brl.format(feito)} guardados em ${ano}`, previsto && `${brl.format(previsto)} previstos`].filter(Boolean).join(" + ") : `nada em ${ano}`}${p.obj ? ` · ${p.falta ? `faltam ${brl.format(p.falta)}` : "objetivo alcançado"}` : ""}</span></span>
           <b class="num">${brl.format(p.atual)}</b></button>`;
       }).join("")}</div>`
-    : `<button class="linha-resumo" type="button" data-ano-caixinhas>${caixaIcone("cofre")}<span>Criar as caixinhas (emergência, Gael, Dante, Nós)</span>${IC.ir}</button>`;
+    : `<button class="linha-resumo" type="button" data-ano-caixinhas>${caixaIcone("cofre")}<span>Criar as caixinhas (emergência, filhos, nós)</span>${IC.ir}</button>`;
 
   corpo.innerHTML = `
     <div class="frases">${frases.map((f) => `<p>${f}</p>`).join("")}</div>
@@ -2831,7 +2831,7 @@ function passosHtml(p) {
   const passo = (n, feito, corpo, attrs) => `<${feito ? "div" : "button type=\"button\""} class="passo ${feito ? "feito" : ""}" ${feito ? "" : attrs}>
     <span class="passo-n">${feito ? '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>' : n}</span><div>${corpo}</div>${feito ? "" : IC.ir}</${feito ? "div" : "button"}>`;
   return [
-    passo(2, p.casal, "<b>Chame quem divide a casa</b><small>Os dois veem e lançam juntos, cada um no seu celular.</small>", 'data-bv="convidar"'),
+    passo(2, p.casal, "<b>Chame quem divide a casa</b><small>Os dois veem e lançam juntos, cada um no seu celular. Usa sozinha ou sozinho? Pode pular.</small>", 'data-bv="convidar"'),
     passo(3, p.receita, "<b>O que entra todo mês</b><small>Salário, vale, renda extra.</small>", 'data-bv="receita"'),
     passo(4, p.fixas, "<b>As contas fixas</b><small>Aluguel, luz, internet, escola.</small>", 'data-bv="fixa"'),
   ].join("");
@@ -3172,6 +3172,20 @@ $("btn-convidar").onclick = async () => {
   } catch (e) { /* compartilhamento cancelado */ }
 };
 
+$("btn-convidar-familia").onclick = async (ev) => {
+  const btn = ev.currentTarget;
+  btn.disabled = true;
+  const { data, error } = await sb.rpc("gerar_convite_casa");
+  btn.disabled = false;
+  if (error) { avisar(msgErro(error)); return; }
+  const link = location.origin + location.pathname;
+  const texto = `Te convidei para o Finanças da Casa. Abra ${link}, crie sua conta e use o código ${data}. Ele cria uma casa só sua: ninguém daqui vê os seus dados.`;
+  try {
+    if (navigator.share) await navigator.share({ title: "Finanças da Casa", text: texto });
+    else { await navigator.clipboard.writeText(texto); avisar(`Convite ${data} copiado. Cole no WhatsApp.`); }
+  } catch (e) { /* compartilhamento cancelado */ }
+};
+
 $("ajustes-escolher-foto").onclick = () => $("foto-arquivo").click();
 $("painel-ajustes").addEventListener("click", (e) => { if (e.target.closest("[data-minha-foto]")) $("foto-arquivo").click(); });
 $("foto-arquivo").onchange = async (e) => {
@@ -3286,7 +3300,7 @@ $("form-nova-senha").addEventListener("submit", async (ev) => {
 $("form-casa").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   $("casa-erro").textContent = "";
-  const { data, error } = await sb.rpc("entrar_na_casa", { p_codigo: $("casa-codigo").value });
+  const { data, error } = await sb.rpc("usar_codigo", { p_codigo: $("casa-codigo").value });
   if (error) { $("casa-erro").textContent = msgErro(error); return; }
   if (!data) { $("casa-erro").textContent = "Código não encontrado. Confira as letras e tente de novo."; return; }
   abrirCasa();

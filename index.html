@@ -430,6 +430,8 @@
   .info-casa > div { flex: 1; min-width: 0; }
   .codigo { font-size: 22px; font-weight: 650; letter-spacing: .14em; margin-top: 2px; }
   .info-casa .btn { width: auto; min-height: 44px; padding: 0 16px; }
+  .info-casa:has(+ .convidar-familia) { margin-bottom: 10px; }
+  .convidar-nota { margin: 6px 2px 18px; }
   .linha-nome { display: flex; gap: 8px; margin: -8px 0 16px; }
   .linha-nome input { flex: 1; min-width: 0; font-size: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--campo); outline: none; }
   .linha-nome input:focus { border-color: var(--primaria); box-shadow: 0 0 0 3px var(--primaria-bg); }
@@ -749,9 +751,9 @@
 <section id="tela-casa" class="tela-centro" hidden>
   <form class="caixa" id="form-casa">
     <div class="marca"><img src="icons/icon-192.png" alt=""><b>Finanças da Casa</b></div>
-    <h1>Entrar na casa</h1>
-    <p>Digite o código de 8 letras que a outra pessoa recebeu. Ele fica em Ajustes, no app dela.</p>
-    <label class="campo"><span>Código da casa</span><input id="casa-codigo" autocapitalize="characters" autocomplete="off" maxlength="12" required></label>
+    <h1>Falta o código</h1>
+    <p>Digite o código que você recebeu. Pode ser o da casa de quem divide as contas com você ou um convite para começar uma casa nova.</p>
+    <label class="campo"><span>Código</span><input id="casa-codigo" autocapitalize="characters" autocomplete="off" maxlength="12" required></label>
     <div class="erro" id="casa-erro" role="alert"></div>
     <button class="btn" type="submit">Entrar</button>
     <button class="btn sec" type="button" id="casa-sair">Sair da conta</button>
@@ -862,6 +864,8 @@
     </div>
     <button class="btn" type="button" id="btn-convidar">Convidar</button>
   </div>
+  <button class="btn sec convidar-familia" type="button" id="btn-convidar-familia">Convidar outra família</button>
+  <p class="nota convidar-nota">Ela ganha uma casa só dela. Ninguém de uma casa vê os dados da outra.</p>
   <div class="campo"><span>Seu nome (aparece no histórico)</span></div>
   <div class="linha-nome">
     <input id="ajustes-nome" maxlength="40" autocomplete="given-name" placeholder="Ex.: Jonatas">
