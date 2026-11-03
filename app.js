@@ -1019,6 +1019,7 @@ function render() {
         : "Guardar dinheiro<small>caixinhas</small>"}</span>${IC.ir}</button>` : ""}
       ${estado.lancs.length ? `<button class="linha-resumo" data-abrir-ano>${svg('<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>')}<span>Como estamos<small>${mes.slice(0, 4)}</small></span>${IC.ir}</button>` : ""}
       ${estado.lancs.length ? `<button class="linha-resumo" data-abrir-plano>${svg('<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>')}<span>Planejamento<small>até ${Number(hoje().slice(0, 4)) + 2}</small></span>${IC.ir}</button>` : ""}
+      <button class="linha-resumo" data-abrir-juros>${svg('<path d="M4 19h16"/><path d="M6 15c3 0 4-2 6-5s4-4 6-4"/><path d="M15 6h3v3"/>')}<span>Juros compostos<small>simular</small></span>${IC.ir}</button>
       </nav>
     </section>
     <section class="col-extrato">
@@ -1169,6 +1170,7 @@ $("conteudo").addEventListener("click", async (ev) => {
   if (t("[data-check-hoje]")) { await checkEmTudoDeHoje(); return; }
   if (t("[data-abrir-ano]")) { abrirAno(Number(estado.mes.slice(0, 4))); return; }
   if (t("[data-abrir-plano]")) { abrirPlano(); return; }
+  if (t("[data-abrir-juros]")) { abrirJuros(); return; }
   if (t("[data-enviar-fila]")) {
     if (!navigator.onLine) { avisar("Ainda sem internet. Assim que conectar, o app envia sozinho."); return; }
     await enviarFila();
@@ -1289,7 +1291,7 @@ window.addEventListener("scroll", () => {
 
 // ---------- painéis ----------
 
-const PAINEIS = ["painel-conferir", "painel-lanc", "painel-ajustes", "painel-historico", "painel-series", "painel-resumo", "painel-busca", "painel-limites", "painel-caixinhas", "painel-caixa", "painel-mov", "painel-ano", "painel-plano", "painel-admin"];
+const PAINEIS = ["painel-conferir", "painel-lanc", "painel-ajustes", "painel-historico", "painel-series", "painel-resumo", "painel-busca", "painel-limites", "painel-caixinhas", "painel-caixa", "painel-mov", "painel-ano", "painel-plano", "painel-admin", "painel-juros"];
 function abrirPainel(p) {
   fecharPaineis(true);
   $("fundo").hidden = false;
@@ -1416,6 +1418,14 @@ $("lanc-desc").addEventListener("input", adivinharNoForm);
 function escopoSerie(e) {
   estado.escopoSerie = e;
   for (const b of $("seg-serie").children) b.classList.toggle("ativo", b.dataset.escopo === e);
+  // O botão de apagar segue a escolha acima: "Só este" nunca mostra o apagar em série.
+  const l = estado.editando;
+  if (!l) return;
+  const temProximos = !!estado.lancs?.some((x) => l.grupo && x.grupo === l.grupo && x.data > l.data);
+  const serie = temProximos && e === "proximos";
+  $("lanc-apagar").hidden = serie;
+  $("lanc-apagar-serie").hidden = !serie;
+  $("lanc-apagar").textContent = temProximos ? (l.recorrente ? "Pular só este" : "Apagar só este") : "Apagar";
 }
 $("seg-serie").onclick = (e) => { const b = e.target.closest("[data-escopo]"); if (b) escopoSerie(b.dataset.escopo); };
 $("lanc-tipo").onclick = (e) => { const b = e.target.closest("[data-tipo]"); if (b) definirTipo(b.dataset.tipo); };
@@ -1550,11 +1560,10 @@ function abrirLanc(l, padrao = {}) {
   const nProximos = temSerie ? estado.lancs.filter((x) => x.grupo === l.grupo && x.data > l.data).length : 0;
   $("bloco-serie").hidden = !nProximos;
   $("serie-proximos").textContent = nProximos === 1 ? "Este e o próximo" : `Este e os ${nProximos} próximos`;
-  escopoSerie(nProximos ? "proximos" : "este");
+  mostrarCalc(false);
   $("lanc-acoes").hidden = !l;
   $("lanc-de-novo").hidden = !l || !!l.caixinha_id;
-  $("lanc-apagar-serie").hidden = !temSerie;
-  $("lanc-apagar").textContent = temSerie && l.recorrente && nProximos ? "Pular só este" : "Apagar";
+  escopoSerie(nProximos ? "proximos" : "este");
   $("lanc-estender").hidden = !(temSerie && l.recorrente && !estado.seriesDb?.get(l.grupo)?.sem_fim);
   $("lanc-hist").hidden = !l;
   if (l) carregarHistoricoDe(l);
@@ -1562,6 +1571,112 @@ function abrirLanc(l, padrao = {}) {
   if (!l) setTimeout(() => $("lanc-valor").focus(), 300);
 }
 $("fab").onclick = () => abrirLanc(null);
+
+// ---------- calculadora do valor ----------
+// Conta com + − × ÷ e vírgula; × e ÷ antes de + e −. Conta incompleta dá NaN.
+function calcular(expr) {
+  const e = expr.replace(/,/g, ".");
+  const tokens = e.match(/\d*\.?\d+|\d+\.|[-+*/]/g);
+  if (!tokens || tokens.join("") !== e) return NaN;
+  let i = 0;
+  const numero = () => { const t = tokens[i++]; return t === undefined || /^[-+*/]$/.test(t) ? NaN : Number(t); };
+  const termo = () => {
+    let v = numero();
+    while (tokens[i] === "*" || tokens[i] === "/") { const op = tokens[i++]; const b = numero(); v = op === "*" ? v * b : v / b; }
+    return v;
+  };
+  let v = termo();
+  while (tokens[i] === "+" || tokens[i] === "-") { const op = tokens[i++]; const b = termo(); v = op === "+" ? v + b : v - b; }
+  return i === tokens.length && Number.isFinite(v) ? Math.round(v * 100) / 100 : NaN;
+}
+let calcExpr = "";
+const SIMBOLO = { "*": "×", "/": "÷", "-": "−", "+": "+" };
+const semOpFinal = () => calcExpr.replace(/[-+*/]$/, "");
+function desenharCalc() {
+  $("calc-expr").textContent = calcExpr.replace(/[-+*/]/g, (o) => ` ${SIMBOLO[o]} `);
+  const v = calcular(semOpFinal());
+  $("calc-res").textContent = Number.isFinite(v) ? brl.format(v) : calcExpr ? "…" : brl.format(0);
+  $("calc-usar").disabled = !(Number.isFinite(v) && v >= 0);
+}
+function mostrarCalc(abrir) {
+  $("lanc-calc").hidden = !abrir;
+  $("calc-abrir").setAttribute("aria-expanded", String(abrir));
+  if (!abrir) return;
+  const atual = lerValor($("lanc-valor").value);
+  calcExpr = Number.isFinite(atual) && atual > 0 ? String(atual).replace(".", ",") : "";
+  desenharCalc();
+}
+$("calc-abrir").onclick = () => mostrarCalc($("lanc-calc").hidden);
+$("calc-teclas").onclick = (e) => {
+  const b = e.target.closest("[data-k]");
+  if (!b) return;
+  const k = b.dataset.k;
+  if (k === "limpar") calcExpr = "";
+  else if (k === "apagar") calcExpr = calcExpr.slice(0, -1);
+  else if (/^[-+*/]$/.test(k)) { if (calcExpr) calcExpr = semOpFinal() + k; }
+  else if (k === ",") { const ultimo = calcExpr.split(/[-+*/]/).pop(); if (!ultimo.includes(",")) calcExpr += ultimo ? "," : "0,"; }
+  else if (calcExpr.length < 60) calcExpr += k;
+  vibrar(6);
+  desenharCalc();
+};
+$("calc-usar").onclick = () => {
+  const v = calcular(semOpFinal());
+  if (!(Number.isFinite(v) && v >= 0)) return;
+  $("lanc-valor").value = mostrarValor(v);
+  $("lanc-valor").dispatchEvent(new Event("input", { bubbles: true }));
+  mostrarCalc(false);
+};
+
+// ---------- juros compostos ----------
+const juros = { taxaPer: "mes", tempoPer: "ano" };
+function abrirJuros() {
+  const guardado = estado.caixinhas ? totalGuardado() : 0;
+  $("juros-usar-caixinhas").hidden = !(guardado > 0);
+  $("juros-usar-caixinhas").textContent = `Usar o que está nas caixinhas (${brl.format(guardado)})`;
+  calcularJuros();
+  abrirPainel($("painel-juros"));
+}
+function calcularJuros() {
+  const ini = lerValor($("juros-inicial").value) || 0;
+  const mensal = lerValor($("juros-mensal").value) || 0;
+  const taxa = (lerValor($("juros-taxa").value) || 0) / 100;
+  const tempo = parseInt($("juros-tempo").value, 10) || 0;
+  const meses = Math.min(600, juros.tempoPer === "ano" ? tempo * 12 : tempo);
+  const i = juros.taxaPer === "mes" ? taxa : Math.pow(1 + taxa, 1 / 12) - 1;
+  if (!meses || (!ini && !mensal)) {
+    $("juros-res").innerHTML = `<p class="juros-nota">Preencha quanto você tem, quanto guarda por mês, o rendimento e o tempo.</p>`;
+    return;
+  }
+  // Mês a mês: rende o que já estava lá e, no fim do mês, entra o depósito.
+  let saldo = ini, posto = ini;
+  const linhas = [];
+  for (let m = 1; m <= meses; m++) {
+    saldo = saldo * (1 + i) + mensal;
+    posto += mensal;
+    if (m % 12 === 0 || m === meses) linhas.push({ m, posto, juros: saldo - posto, saldo });
+  }
+  const tempoTxt = (m) => (m % 12 === 0 ? (m === 12 ? "1 ano" : `${m / 12} anos`) : m === 1 ? "1 mês" : `${m} meses`);
+  const rendeu = saldo - posto;
+  $("juros-res").innerHTML = `
+    <p class="juros-frase">Em ${tempoTxt(meses)}, você terá <b class="num">${brl.format(saldo)}</b>.</p>
+    <p class="juros-frase menor">Você colocou ${brl.format(posto)} e os juros renderam ${brl.format(rendeu)}${posto > 0 && rendeu > 0 ? `, ${Math.round((rendeu / posto) * 100)}% a mais` : ""}.</p>
+    <p class="juros-nota">Conta sem imposto de renda e sem inflação. Rendimento ao ano vira ao mês pela taxa equivalente.</p>
+    ${linhas.length > 1 ? `<table class="juros-tab num"><thead><tr><th>Tempo</th><th>Você colocou</th><th>Juros</th><th>Total</th></tr></thead><tbody>
+      ${linhas.map((x) => `<tr><td>${tempoTxt(x.m)}</td><td>${brl.format(x.posto)}</td><td>${brl.format(x.juros)}</td><td>${brl.format(x.saldo)}</td></tr>`).join("")}
+    </tbody></table>` : ""}`;
+}
+$("painel-juros").addEventListener("input", calcularJuros);
+$("painel-juros").addEventListener("submit", (e) => e.preventDefault());
+for (const id of ["juros-taxa-per", "juros-tempo-per"]) {
+  $(id).onclick = (e) => {
+    const b = e.target.closest("[data-per]");
+    if (!b) return;
+    juros[id === "juros-taxa-per" ? "taxaPer" : "tempoPer"] = b.dataset.per;
+    for (const x of e.currentTarget.children) x.classList.toggle("ativo", x === b);
+    calcularJuros();
+  };
+}
+$("juros-usar-caixinhas").onclick = () => { $("juros-inicial").value = mostrarValor(totalGuardado()); calcularJuros(); };
 
 $("painel-lanc").addEventListener("submit", async (ev) => {
   ev.preventDefault();

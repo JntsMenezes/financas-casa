@@ -131,6 +131,38 @@
   .btn.texto.perigo { background: transparent; color: var(--vermelho); }
   .link { background: none; border: 0; color: var(--destaque); padding: 12px 0; font-size: 14px; min-height: 44px; }
 
+  /* Calculadora do valor */
+  .valor-linha { position: relative; }
+  .valor-linha .campo input { padding-right: 56px; }
+  .calc-abrir { position: absolute; right: 4px; bottom: 18px; color: var(--muted); }
+  .calc-abrir[aria-expanded="true"] { color: var(--destaque); }
+  .calc { margin: -4px 0 16px; padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+  .calc-visor { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding: 4px 6px 10px; min-height: 52px; }
+  .calc-visor span { font-size: 14px; color: var(--muted); word-break: break-all; text-align: right; }
+  .calc-visor strong { font-size: 24px; font-weight: 650; }
+  .calc-teclas { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .calc-teclas button { min-height: 48px; border: 0; border-radius: 12px; background: var(--campo); color: var(--ink); font-size: 19px; font-weight: 550; transition: transform .1s var(--sai); }
+  .calc-teclas button:active { transform: scale(.95); }
+  .calc-teclas button:disabled { opacity: .5; }
+  .calc-teclas .op { color: var(--destaque); font-weight: 650; }
+  .calc-teclas .usar { grid-column: span 3; background: var(--primaria); color: var(--sobre-primaria); font-size: 15px; font-weight: 600; }
+
+  /* Juros compostos */
+  .juros-intro { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
+  .juros-usar { padding: 0 0 10px; margin-top: -8px; min-height: 0; font-size: 13.5px; }
+  .juros-dupla { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
+  .juros-dupla .seg { margin-bottom: 14px; min-width: 150px; }
+  .juros-frase { font-size: 17px; line-height: 1.4; margin: 6px 0 4px; }
+  .juros-frase b { color: var(--destaque); }
+  .juros-frase.menor { font-size: 15px; }
+  .juros-nota { font-size: 12.5px; color: var(--muted); margin: 0 0 12px; }
+  .juros-tab { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .juros-tab th { text-align: right; font-weight: 500; color: var(--muted); font-size: 12px; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+  .juros-tab th:first-child, .juros-tab td:first-child { text-align: left; }
+  .juros-tab td { text-align: right; padding: 7px 4px; border-bottom: 1px solid var(--line); }
+  .juros-tab td:last-child { font-weight: 600; }
+  .atalhos > :last-child:nth-child(odd):not(:first-child) { grid-column: span 2; }
+
   /* Login e entrada */
   .tela-centro { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; }
   .caixa { width: 100%; max-width: 380px; }
@@ -417,6 +449,7 @@
   .seg.tres { grid-template-columns: repeat(3, 1fr); }
   .seg button.ativo[data-escopo] { background: var(--card); color: var(--ink); box-shadow: var(--sombra); }
   .seg button.ativo[data-tema] { background: var(--card); color: var(--ink); box-shadow: var(--sombra); }
+  .seg button.ativo[data-per] { background: var(--card); color: var(--ink); box-shadow: var(--sombra); }
   .valor-grande input { font-size: 30px; font-weight: 650; letter-spacing: -.02em; padding: 10px 14px; }
   .duas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .toggle { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 2px 0 10px; font-size: 15px; }
@@ -820,7 +853,20 @@
     <button type="button" data-tipo="despesa" class="ativo">Despesa</button>
     <button type="button" data-tipo="receita">Receita</button>
   </div>
-  <label class="campo valor-grande"><span>Valor (R$)</span><input id="lanc-valor" class="num" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>
+  <div class="valor-linha">
+    <label class="campo valor-grande"><span>Valor (R$)</span><input id="lanc-valor" class="num" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>
+    <button class="icone calc-abrir" type="button" id="calc-abrir" aria-label="Calculadora" aria-expanded="false" aria-controls="lanc-calc"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M8.5 7h7M9 11.5h.01M12 11.5h.01M15 11.5h.01M9 15h.01M12 15h.01M15 15h.01M9 18h.01M12 18h.01M15 18h.01"/></svg></button>
+  </div>
+  <div class="calc" id="lanc-calc" hidden>
+    <div class="calc-visor"><span id="calc-expr" class="num"></span><strong id="calc-res" class="num">R$ 0,00</strong></div>
+    <div class="calc-teclas" id="calc-teclas">
+      <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button><button type="button" data-k="/" class="op" aria-label="Dividir">÷</button>
+      <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button><button type="button" data-k="*" class="op" aria-label="Multiplicar">×</button>
+      <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button><button type="button" data-k="-" class="op" aria-label="Menos">−</button>
+      <button type="button" data-k=",">,</button><button type="button" data-k="0">0</button><button type="button" data-k="apagar" aria-label="Apagar">⌫</button><button type="button" data-k="+" class="op" aria-label="Mais">+</button>
+      <button type="button" data-k="limpar" class="op" aria-label="Limpar">C</button><button type="button" class="usar" id="calc-usar">Usar este valor</button>
+    </div>
+  </div>
   <label class="campo"><span>Descrição</span><input id="lanc-desc" list="sugestoes" maxlength="120" autocomplete="off" placeholder="Ex.: Mercado Semana"></label>
   <datalist id="sugestoes"></datalist>
   <div class="recentes" id="lanc-recentes" aria-label="Lançar de novo"></div>
@@ -1042,6 +1088,25 @@
   <div class="painel-cab"><h2>Planejamento</h2><button class="icone" type="button" data-fechar-painel aria-label="Fechar"><svg class="ic" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button></div>
   <div id="plano-corpo"></div>
 </div>
+
+<!-- Juros compostos -->
+<form class="painel" id="painel-juros" hidden novalidate>
+  <div class="alca" aria-hidden="true"></div>
+  <div class="painel-cab"><h2>Juros compostos</h2><button class="icone" type="button" data-fechar-painel aria-label="Fechar"><svg class="ic" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button></div>
+  <p class="juros-intro">Quanto o dinheiro guardado vira com o tempo, juntando um pouco todo mês.</p>
+  <label class="campo"><span>Começo com (R$)</span><input id="juros-inicial" class="num" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>
+  <button class="link juros-usar" type="button" id="juros-usar-caixinhas" hidden></button>
+  <label class="campo"><span>Guardo por mês (R$)</span><input id="juros-mensal" class="num" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>
+  <div class="juros-dupla">
+    <label class="campo"><span>Rendimento (%)</span><input id="juros-taxa" class="num" inputmode="decimal" placeholder="1,0" autocomplete="off"></label>
+    <div class="seg" id="juros-taxa-per" role="group" aria-label="Rendimento por"><button type="button" data-per="mes" class="ativo">ao mês</button><button type="button" data-per="ano">ao ano</button></div>
+  </div>
+  <div class="juros-dupla">
+    <label class="campo"><span>Por quanto tempo</span><input id="juros-tempo" class="num" inputmode="numeric" placeholder="5" autocomplete="off"></label>
+    <div class="seg" id="juros-tempo-per" role="group" aria-label="Tempo em"><button type="button" data-per="ano" class="ativo">anos</button><button type="button" data-per="mes">meses</button></div>
+  </div>
+  <div id="juros-res" aria-live="polite"></div>
+</form>
 
 <!-- Conferir com o banco -->
 <form class="painel" id="painel-conferir" hidden novalidate>
