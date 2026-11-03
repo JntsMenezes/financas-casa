@@ -34,6 +34,7 @@ const CATS = {
     ["saude", "Saúde", '<path d="M12 20s-7-4.4-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.6-7 10-7 10z"/>'],
     ["assinaturas", "Assinaturas", '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z"/>'],
     ["dividas", "Empréstimos e cartões", '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18M7 15h4"/>'],
+    ["comer", "Comer fora", '<path d="M7 3v7a2 2 0 002 2v9M5 3v5M9 3v5"/><path d="M17 21V3c-2 1.5-3 4-3 7v3h3"/>'],
     ["lazer", "Presentes e lazer", '<rect x="4" y="9" width="16" height="11" rx="1.5"/><path d="M3 9h18M12 9v11"/><path d="M12 9c-1.5-3.5-5.5-3.5-5.5-1S10 9 12 9zm0 0c1.5-3.5 5.5-3.5 5.5-1S14 9 12 9z"/>'],
     ["outros", "Outros", '<circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/>'],
   ],
@@ -62,7 +63,8 @@ const REGRAS = {
     [/fono|medic|farmacia|remedio|dentista|consulta|exame|plano de saude|terapia|psico/, "saude"],
     [/spotify|netflix|crunchyroll|prime|disney|hbo|\bmax\b|youtube|icloud|assinatura|globoplay|deezer/, "assinaturas"],
     [/emprestimo|fatura|cartao|nubank|picpay|divida|pagamento|parcela/, "dividas"],
-    [/presente|niver|aniversario|almoco|jantar|restaurante|lanche|cinema|perfume|festa|viagem|passeio|ifood/, "lazer"],
+    [/presente|niver|aniversario|casamento|cinema|perfume|festa|viagem|passeio/, "lazer"],
+    [/almoco|jantar|restaurante|lanche|lanchonete|ifood|pizza|hamburg|cafe da manha|cafeteria|sobremesa|sorvete|acai|\bsuco\b|pastel|esfiha|marmitex/, "comer"],
   ],
   receita: [
     [/salario|decimo|\bvale\b|ferias|ticket|beneficio|\bplr\b/, "salario"],
@@ -2386,7 +2388,7 @@ $("painel-mov").addEventListener("submit", async (ev) => {
 // ---------- planejamento ----------
 
 // Categorias que contam como gasto do dia a dia (o que não é conta fixa nem dívida).
-const CATS_DIA = new Set(["mercado", "transporte", "saude", "lazer", "outros", "assinaturas"]);
+const CATS_DIA = new Set(["mercado", "comer", "transporte", "saude", "lazer", "outros", "assinaturas"]);
 
 // Média real do dia a dia nos últimos meses fechados: despesas avulsas (sem conta fixa nem parcela) dessas categorias.
 function mediaDiaADia() {
@@ -2852,7 +2854,7 @@ function analiseAno(ano, meses, tot, cats) {
   }
 
   // Onde dá para cortar: os dois maiores gastos que dependem de escolha.
-  const flex = ["lazer", "mercado", "transporte", "assinaturas", "outros"].map((k) => [k, cat.get(k) || 0]).filter(([, v]) => v > 0).sort((a, b2) => b2[1] - a[1]).slice(0, 2);
+  const flex = ["comer", "lazer", "mercado", "transporte", "assinaturas", "outros"].map((k) => [k, cat.get(k) || 0]).filter(([, v]) => v > 0).sort((a, b2) => b2[1] - a[1]).slice(0, 2);
   if (flex.length) {
     const corte = flex.reduce((s, [, v]) => s + v, 0) * 0.1 / n;
     out.push({ tom: "info", linhas: [
