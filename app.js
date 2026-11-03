@@ -56,7 +56,7 @@ const catInfo = (tipo, chave) => {
 const REGRAS = {
   despesa: [
     [/aluguel|agua|energia|\bluz\b|internet|condominio|\bgas\b|celular|iptu/, "casa"],
-    [/mercado|feira|padaria|acougue|hortifruti|atacad/, "mercado"],
+    [/mercado|feira|padaria|\bpao\b|cafe da manha|\bsuco\b|sobremesa|\bdoce\b|sorvete|acai|acougue|hortifruti|atacad/, "mercado"],
     [/multa|carro|byd|ipva|combust|gasolina|sem parar|estaciona|oficina|pedagio/, "carro"],
     [/transporte|onibus|blablacar|metro|locomo|uber|\b99\b/, "transporte"],
     [/escola|faculdade|curso|material escolar|mensalidade/, "educacao"],
@@ -64,7 +64,7 @@ const REGRAS = {
     [/spotify|netflix|crunchyroll|prime|disney|hbo|\bmax\b|youtube|icloud|assinatura|globoplay|deezer/, "assinaturas"],
     [/emprestimo|fatura|cartao|nubank|picpay|divida|pagamento|parcela/, "dividas"],
     [/presente|niver|aniversario|casamento|cinema|perfume|festa|viagem|passeio/, "lazer"],
-    [/almoco|jantar|restaurante|lanche|lanchonete|ifood|pizza|hamburg|cafe da manha|cafeteria|sobremesa|sorvete|acai|\bsuco\b|pastel|esfiha|marmitex/, "comer"],
+    [/almoco|jantar|restaurante|lanche|lanchonete|ifood|pizza|hamburg|cafeteria|pastel|esfiha|marmitex/, "comer"],
   ],
   receita: [
     [/salario|decimo|\bvale\b|ferias|ticket|beneficio|\bplr\b/, "salario"],
