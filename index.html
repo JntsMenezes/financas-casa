@@ -19,7 +19,7 @@
     if (p === "rosa" || p === "noite") document.documentElement.dataset.paleta = p;
     else if (p) localStorage.removeItem("paleta"); // paleta que saiu do app volta para o Ninho
     const escuro = t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
-    const fundos = { ninho: ["#faf6ee", "#0e1917"], rosa: ["#f8eceb", "#1e1619"], noite: ["#0b1430", "#0b1430"] };
+    const fundos = { ninho: ["#faf6ee", "#0e1917"], rosa: ["#edbec6", "#1e1619"], noite: ["#0b1430", "#0b1430"] };
     document.querySelector('meta[name="theme-color"]').content = (fundos[p] || fundos.ninho)[escuro ? 1 : 0];
   } catch (e) {}
 </script>
@@ -43,7 +43,7 @@
     --fundo: #faf6ee;
     --acao: #123f3b; --sobre-acao: #f4ecdd; --acao-texto: #1c6b5d;
     --guardado: #e3a33b; --guardado-texto: #7a4f0c;
-    --negativo: #b42318;
+    --negativo: #9b1c13;
     --bg: var(--fundo); --destaque: var(--acao-texto); --ovo: var(--guardado); --ovo-tinta: var(--guardado-texto); --vermelho: var(--negativo);
     --tag-bg: var(--fundo);
     --card: #fffdf8;
@@ -110,12 +110,12 @@
   /* Rosa (Ajustes > Cores): fundo rosado suave, menta no botão + e um verde mais escuro no texto de ação.
      Etiquetas em cinza-quente, não rosa. No escuro, quase-preto puxado para ameixa (não confundir com a Noite). */
   :root[data-paleta="rosa"] {
-    --fundo: #f8eceb; --card: #fffaf9; --ink: #2a2b2e; --muted: #6b605d; --line: #ecdcd9;
-    --acao: #22e3a2; --sobre-acao: #1d1e20; --acao-texto: #0c7553;
-    --guardado: #d99a2b; --guardado-texto: #7f520a;
+    --fundo: #edbec6; --card: #fffaf9; --ink: #2a2b2e; --muted: #5a4f4c; --line: #e2b3bc;
+    --acao: #22e3a2; --sobre-acao: #1d1e20; --acao-texto: #085a3f;
+    --guardado: #d99a2b; --guardado-texto: #6b4408;
     --primaria: #2e3033; --primaria-bg: #ece2e0; --sobre-primaria: #22e3a2;
     --ovo-forte: #c4861c; --ovo-bg: #f7e8cc;
-    --campo: #fffaf9; --vidro: rgba(248,236,235,.86); --toast-acao: #22e3a2; --topo: #f3e0de; --tag-bg: #f1ece9;
+    --campo: #fffaf9; --vidro: rgba(237,190,198,.86); --toast-acao: #22e3a2; --topo: #e6b2bb; --tag-bg: #f1ece9;
     --q2: #8a2f68;
   }
   @media (prefers-color-scheme: dark) {
@@ -161,7 +161,7 @@
   .amostra i:nth-child(1) { flex: 6; } .amostra i:nth-child(2) { flex: 3; } .amostra i:nth-child(3) { flex: 1; }
 
   /* Luz difusa no alto por paleta; o Ninho fica sem. Na Noite, bem fraca e pequena. */
-  :root[data-paleta="rosa"] { --luz1: rgba(34,227,162,.22); --luz2: rgba(255,255,255,.45); }
+  :root[data-paleta="rosa"] { --luz1: rgba(255,255,255,.4); --luz2: rgba(255,255,255,.3); }
   html:root[data-paleta="noite"] { --luz1: rgba(61,107,255,.10); --luz2: transparent; --luz-tam: 40% 42%; }
   @media (prefers-color-scheme: dark) {
     :root[data-paleta="rosa"]:not([data-theme="light"]) { --luz1: rgba(34,227,162,.12); --luz2: rgba(150,70,100,.10); }
@@ -1097,7 +1097,7 @@
   <div class="campo"><span>Cores</span></div>
   <div class="seg tres" id="seg-paleta">
     <button type="button" data-paleta="ninho"><span class="amostra"><i style="background:#faf6ee"></i><i style="background:#123f3b"></i><i style="background:#e3a33b"></i></span>Ninho</button>
-    <button type="button" data-paleta="rosa"><span class="amostra"><i style="background:#f8eceb"></i><i style="background:#2e3033"></i><i style="background:#22e3a2"></i></span>Rosa</button>
+    <button type="button" data-paleta="rosa"><span class="amostra"><i style="background:#edbec6"></i><i style="background:#2e3033"></i><i style="background:#22e3a2"></i></span>Rosa</button>
     <button type="button" data-paleta="noite"><span class="amostra"><i style="background:#0b1430"></i><i style="background:#3d6bff"></i><i style="background:#ffa53d"></i></span>Noite</button>
   </div>
   <div class="campo"><span>Tema</span></div>
