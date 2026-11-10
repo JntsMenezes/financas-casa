@@ -85,6 +85,7 @@ function adivinharCategoria(descricao, tipo) {
 const categoriaDe = (l) => (l.categoria && CATS[l.tipo].some((c) => c[0] === l.categoria) ? l.categoria : adivinharCategoria(l.descricao, l.tipo));
 // Guardar e resgatar mexem no saldo da conta, mas não são gasto nem renda.
 const ehCaixinha = (l) => !!l.caixinha_id;
+const catCls = (l) => (l.caixinha_id ? "cx" : "c-" + categoriaDe(l));
 const iconeDe = (l) => (l.caixinha_id ? caixaIcone(caixinhaDe(l.caixinha_id)?.icone) : catInfo(l.tipo, categoriaDe(l)).icone);
 const nomeCatDe = (l) => (l.caixinha_id ? `Caixinha ${caixinhaDe(l.caixinha_id)?.nome || ""}`.trim() : catInfo(l.tipo, categoriaDe(l)).nome);
 
@@ -788,7 +789,7 @@ function hojeHtml(hj) {
   const pagarAtras = atrasados.filter((l) => l.tipo === "despesa"), receberAtras = atrasados.filter((l) => l.tipo === "receita");
   const semCheckHoje = deHoje.filter((l) => !l.pago);
   const titulo = atrasados.length ? "Hoje e pendentes" : "Hoje";
-  const cab = `<div class="hoje-cab" id="hoje"><span>${titulo} · ${nomeDia.format(deIso(hj))}</span>${semCheckHoje.length > 1 ? `<button class="link" type="button" data-check-hoje>Check em tudo de hoje</button>` : ""}</div>`;
+  const cab = `<div class="hoje-cab" id="hoje">${diaCab(hj, titulo)}${semCheckHoje.length > 1 ? `<button class="link" type="button" data-check-hoje>Check em tudo de hoje</button>` : ""}</div>`;
   if (!atrasados.length && !deHoje.length) {
     return `<section class="bloco-hoje">${cab}<div class="em-dia"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Nada para hoje. Está tudo em dia.</span></div></section>`;
   }
@@ -912,6 +913,15 @@ const nBrl = (v, k = "") => `<span class="n num ${v < 0 ? "neg" : ""}" data-n="$
 // Lembra os números da frase para animar só o que mudou no mesmo mês.
 let fraseAntes = { mes: null, hoje: null, fim: null };
 
+// Valor curto para a linha de números: R$ 860, R$ 13,5 mil, R$ 1,2 mi.
+function curto(v) {
+  const a = Math.abs(v), f = (x, d) => x.toLocaleString("pt-BR", { maximumFractionDigits: d });
+  if (a >= 1e6) return `R$ ${f(v / 1e6, 1)}<small> mi</small>`;
+  if (a >= 1e4) return `R$ ${f(v / 1e3, 1)}<small> mil</small>`;
+  if (a >= 1e3) return `R$ ${f(v / 1e3, 2)}<small> mil</small>`;
+  return `R$ ${f(v, 0)}`;
+}
+
 function render() {
   const mes = estado.mes, hj = hoje(), mesAtual = hj.slice(0, 7);
   const tituloMes = nomeMes.format(deIso(mes + "-01"));
@@ -946,6 +956,10 @@ function render() {
       (guardado > 0 ? `; <b class="num">${brl.format(guardado)}</b> ${mes > mesAtual ? "vão" : "foram"} para as caixinhas.` : ".") + (mes > mesAtual ? aperto(pts, hj, entradas) : "");
   }
   const inicioMes = saldoAte(somarDias(mes + "-01", -1));
+  const passado = mes < mesAtual;
+  const stat = (v, rot, cls = "") => `<div class="stat ${cls}"><b class="num">${curto(v)}</b><span>${rot}</span></div>`;
+  const stats = entradas || saidas || guardado
+    ? `<div class="stats">${stat(entradas, passado ? "entrou" : "entra", "ent")}${stat(saidas, passado ? "saiu" : "sai", "sai")}${guardado > 0 ? stat(guardado, passado ? "guardou" : "guarda", "gua") : ""}</div>` : "";
   const blocoHoje = mes === mesAtual ? hojeHtml(hj) : "";
 
   // Avisos, cada um leva ao que precisa ser feito.
@@ -1009,7 +1023,7 @@ function render() {
       ${casalHtml()}
       ${faltaPoucoHtml()}
       <div class="frase"><h2>${titulo}</h2>${(!navigator.onLine || estado.cargaFalhou) && estado.dadosEm
-        ? `<p class="velho">${IC.alerta}<span>Atualizado ${((q) => (/^\d/.test(q) ? "em " + q : q))(haQuanto(estado.dadosEm))}; ${navigator.onLine ? "não consegui buscar o que mudou depois" : "sem internet agora"}.</span></p>` : ""}<p>${apoio}</p>${mes === mesAtual ? '<button class="link conferir" type="button" data-conferir>Conferir com o banco</button>' : ""}</div>
+        ? `<p class="velho">${IC.alerta}<span>Atualizado ${((q) => (/^\d/.test(q) ? "em " + q : q))(haQuanto(estado.dadosEm))}; ${navigator.onLine ? "não consegui buscar o que mudou depois" : "sem internet agora"}.</span></p>` : ""}<p>${apoio}</p>${stats}${mes === mesAtual ? '<button class="link conferir" type="button" data-conferir>Conferir com o banco</button>' : ""}</div>
       ${blocoHoje}
       ${avisos.length ? `<div class="avisos">${(estado.verAvisos ? avisos : avisos.slice(0, 2)).join("")}${avisos.length > 2
         ? `<button class="link mais-avisos" type="button" data-mais-avisos>${estado.verAvisos ? "Mostrar menos" : `Mais ${avisos.length - 2} ${avisos.length - 2 === 1 ? "aviso" : "avisos"}`}</button>` : ""}</div>` : ""}
@@ -1055,6 +1069,12 @@ document.addEventListener("abertura-saindo", () => {
   document.querySelectorAll("#conteudo .dia").forEach((d, i) => { d.style.setProperty("--i", Math.min(i, 7)); d.classList.add("chega"); });
 }, { once: true });
 
+const semanaCurta = new Intl.DateTimeFormat("pt-BR", { weekday: "short" });
+function diaCab(data, extra = "") {
+  const sem = semanaCurta.format(deIso(data)).replace(".", "");
+  return `<span class="d-cab"><b class="d-num">${Number(data.slice(8))}</b><span class="d-sem">${sem}${extra ? ` · ${extra}` : ""}</span></span>`;
+}
+
 function diasHtml(lista, hj, entrar = false) {
   const grupos = new Map();
   for (const l of lista) { if (!grupos.has(l.data)) grupos.set(l.data, []); grupos.get(l.data).push(l); }
@@ -1062,7 +1082,7 @@ function diasHtml(lista, hj, entrar = false) {
   for (const [data, itens] of grupos) {
     const futuro = data >= hj && estado.filtro === "todos";
     out += `<div class="dia ${entrar ? "entra" : ""}" id="dia-${data}"${entrar ? ` style="--i:${Math.min(i++, 6)}"` : ""}>
-      <div class="dia-cab"><span>${nomeDia.format(deIso(data))}</span></div>
+      <div class="dia-cab">${diaCab(data)}</div>
       <div class="lista">${itens.map((l) => itemHtml(l, hj, { saldo: futuro })).join("")}</div>
     </div>`;
   }
@@ -1138,7 +1158,7 @@ function itemHtml(l, hj, op = {}) {
   return `<div class="item ${baixado ? "baixado" : ""}">
     <button class="check ${l.pago ? "ok" : ""} ${atrasado ? "atrasado" : ""}" data-check="${l.id}" aria-pressed="${l.pago}" aria-label="${esc(l.descricao)}: ${l.pago ? `tirar check` : `marcar como ${feito}`}"><span class="bola">${IC.check}</span></button>
     <button class="corpo" data-editar="${l.id}">
-      <span class="cat-ic ${l.caixinha_id ? "cx" : ""}" title="${esc(nomeCatDe(l))}">${iconeDe(l)}</span>
+      <span class="cat-ic ${catCls(l)}" title="${esc(nomeCatDe(l))}">${iconeDe(l)}</span>
       <div class="txt">
         <div class="desc">${esc(l.descricao)}</div>
         ${l.observacao ? `<div class="obs" title="${esc(l.observacao)}">${esc(l.observacao)}</div>` : ""}
@@ -1995,7 +2015,7 @@ function abrirResumo() {
     <h3 class="sub">Entradas por categoria</h3>
     ${barrasHtml("receita", doMes, doAnt)}
     ${maiores.length ? `<h3 class="sub">Maiores saídas</h3><div class="lista lista-plana">${maiores.map((l) => `<button class="linha-simples" data-abrir-lanc="${l.id}">
-      <span class="cat-ic">${iconeDe(l)}</span><span class="desc">${esc(l.descricao)}</span>
+      <span class="cat-ic ${catCls(l)}">${iconeDe(l)}</span><span class="desc">${esc(l.descricao)}</span>
       <span class="num quando">${dataCurta(l.data)}</span><b class="num">${brl.format(Number(l.valor))}</b></button>`).join("")}</div>` : ""}
     <p class="nota">Inclui o que ainda não tem check. Toque numa categoria para ver os lançamentos dela.</p>`;
   abrirPainel($("painel-resumo"));
@@ -3090,7 +3110,7 @@ function buscar() {
   alvo.innerHTML = `<div class="nota num">${achados.length} ${achados.length === 1 ? "resultado" : "resultados"}${sai ? ` · ${brl.format(sai)} em saídas` : ""}${ent ? ` · ${brl.format(ent)} em entradas` : ""}</div>` +
     [...porMes.entries()].map(([m, ls]) => `<div class="dia-cab" style="margin-top:14px">${nomeMes.format(deIso(m + "-01"))}</div>
       <div class="lista lista-plana">${ls.map((l) => `<button class="linha-simples ${l.pago && l.data < hoje() ? "baixado" : ""}" data-abrir-lanc="${l.id}">
-        <span class="cat-ic">${iconeDe(l)}</span><span class="desc">${esc(l.descricao)}</span>
+        <span class="cat-ic ${catCls(l)}">${iconeDe(l)}</span><span class="desc">${esc(l.descricao)}</span>
         <span class="num quando">${dataCurta(l.data)}</span><b class="num ${l.tipo === "receita" ? "pos" : ""}">${l.tipo === "receita" ? "+" : "−"} ${brl.format(Number(l.valor))}</b></button>`).join("")}</div>`).join("");
 }
 $("busca-q").addEventListener("input", () => { clearTimeout(buscaTimer); buscaTimer = setTimeout(buscar, 120); });
@@ -3232,6 +3252,8 @@ function aplicarTema(t) {
   // A Noite é só escura: o Tema fica desligado enquanto ela estiver escolhida.
   for (const b of $("seg-tema").children) b.disabled = paletaAtual() === "noite";
   for (const b of $("seg-paleta").children) b.classList.toggle("ativo", b.dataset.paleta === paletaAtual());
+  const ativo = [...$("seg-paleta").children].find((b) => b.dataset.paleta === paletaAtual());
+  if (ativo) $("assinatura").innerHTML = [...ativo.querySelectorAll(".amostra i")].map((i) => `<i style="${i.getAttribute("style")}"></i>`).join("") + `<span>Edição ${ativo.textContent.trim()}</span>`;
   // theme-color segue o fundo real da paleta e do modo.
   const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
   if (bg) document.querySelector('meta[name="theme-color"]').content = bg;
