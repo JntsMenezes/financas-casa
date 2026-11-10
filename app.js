@@ -383,12 +383,38 @@ async function manterSeries() {
 }
 
 async function carregarMembros() {
-  let r = await sb.from("membros").select("user_id, nome, email, foto").eq("casa_id", estado.casa.id);
+  let r = await sb.from("membros").select("user_id, nome, email, foto, paleta").eq("casa_id", estado.casa.id);
+  // Banco ainda sem a paleta (20_paleta.sql).
+  if (r.error?.code === "42703") r = await sb.from("membros").select("user_id, nome, email, foto").eq("casa_id", estado.casa.id);
   // Banco ainda sem a foto (13_foto.sql) ou sem as colunas de nome (02_historico.sql).
   if (r.error?.code === "42703") r = await sb.from("membros").select("user_id, nome, email").eq("casa_id", estado.casa.id);
   if (r.error?.code === "42703") r = await sb.from("membros").select("user_id").eq("casa_id", estado.casa.id);
   if (r.error) { avisar(msgErro(r.error)); return; } // mantém os nomes que já estavam na tela
   estado.membros = new Map((r.data || []).map((m) => [m.user_id, m]));
+  sincronizarPaleta();
+}
+
+// Grava no banco a paleta escolhida neste celular, para a outra pessoa ver a cor de quem é quem.
+function sincronizarPaleta() {
+  const eu = estado.sessao?.user?.id, m = eu && estado.membros.get(eu);
+  if (!m || !("paleta" in m) || m.paleta === paletaAtual() || !navigator.onLine) return;
+  m.paleta = paletaAtual();
+  sb.rpc("definir_minha_paleta", { p_paleta: m.paleta }).then(({ error }) => { if (error) console.error("paleta", error); });
+}
+
+// Cada pessoa na cor da paleta que escolheu: Ninho verde, Rosa rosa, Noite azul (tom claro no modo escuro).
+// --q1 é sempre quem está com o celular; --q2, a outra pessoa. Se as duas usam a mesma paleta, a outra
+// ganha a cor vizinha para não confundir. Sem a paleta da outra pessoa no banco, ficam as cores antigas.
+const CORES_PALETA = { ninho: ["#1c6b5d", "#9fd3bf"], rosa: ["#c2547a", "#f0a6b8"], noite: ["#3d6bff", "#8eaaff"] };
+const VIZINHA = { ninho: "noite", rosa: "ninho", noite: "rosa" };
+function aplicarCoresPessoas() {
+  const raiz = document.documentElement, eu = estado.sessao?.user?.id, minha = paletaAtual();
+  const escuro = getComputedStyle(raiz).colorScheme === "dark";
+  let dela = [...estado.membros.values()].find((m) => m.user_id && m.user_id !== eu)?.paleta;
+  if (dela === minha) dela = VIZINHA[dela];
+  const cores = dela && CORES_PALETA[dela] ? [["--q1", minha], ["--q2", dela]] : [];
+  for (const v of ["--q1", "--q2"]) raiz.style.removeProperty(v);
+  for (const [v, p] of cores) raiz.style.setProperty(v, CORES_PALETA[p][escuro ? 1 : 0]);
 }
 
 function nomeDe(uid) {
@@ -860,10 +886,10 @@ function atualizarSelo() {
 }
 
 // Quem é a pessoa 1 e a 2 da casa, para a cor de cada um.
+// 1 é sempre quem está com o celular, 2 é a outra pessoa.
 function ordemDe(uid) {
-  const ids = [...estado.membros.keys()];
-  const i = ids.indexOf(uid);
-  return i < 0 ? 0 : (i % 2) + 1;
+  if (!estado.membros.has(uid)) return 0;
+  return uid === estado.sessao?.user?.id ? 1 : 2;
 }
 
 // Foto da pessoa, ou a inicial na cor dela. A própria pessoa toca na dela para trocar.
@@ -899,13 +925,15 @@ function preencherFotoAjustes() {
 }
 
 function casalHtml() {
-  const ids = [...estado.membros.keys()].slice(0, 2);
+  // Quem está com o celular aparece primeiro: "Jonatas e Larissa" num, "Larissa e Jonatas" no outro.
+  const eu = estado.sessao?.user?.id;
+  const ids = [...estado.membros.keys()].sort((a, b) => (b === eu) - (a === eu)).slice(0, 2);
   if (!ids.length && estado.sessao) ids.push(estado.sessao.user.id);
   const nomes = ids.map((u) => nomeDe(u));
 
   const acao = ultimaAcao();
   return `<div class="casal">
-    <span class="pares">${ids.map((u, i) => avatarHtml(u, i + 1)).join("")}</span>
+    <span class="pares">${ids.map((u, i) => avatarHtml(u, ordemDe(u) || i + 1)).join("")}</span>
     <span class="nomes">${esc(nomes.join(" e "))}</span>
     ${seloHtml(ids.length)}
   </div>${acao ? `<p class="ultimo"><i class="q${ordemDe(acao.uid)}"></i><span><b>${esc(nomeDe(acao.uid))}</b> ${acao.txt}, ${haQuanto(acao.quando)}.</span></p>` : ""}`;
@@ -925,6 +953,7 @@ function curto(v) {
 }
 
 function render() {
+  aplicarCoresPessoas();
   const mes = estado.mes, hj = hoje(), mesAtual = hj.slice(0, 7);
   const tituloMes = nomeMes.format(deIso(mes + "-01"));
   $("mes-nome").textContent = (tituloMes.charAt(0).toUpperCase() + tituloMes.slice(1)).replace(" de ", " ");
@@ -3275,6 +3304,7 @@ function aplicarTema(t) {
   // theme-color segue o fundo real da paleta e do modo.
   const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
   if (bg) document.querySelector('meta[name="theme-color"]').content = bg;
+  aplicarCoresPessoas();
 }
 function paletaAtual() {
   try { const p = localStorage.getItem("paleta"); return p === "rosa" || p === "noite" ? p : "ninho"; } catch (e) { return "ninho"; }
@@ -3284,6 +3314,7 @@ function aplicarPaleta(p) {
   else document.documentElement.dataset.paleta = p;
   try { if (p === "ninho") localStorage.removeItem("paleta"); else localStorage.setItem("paleta", p); } catch (e) {}
   aplicarTema(temaAtual());
+  sincronizarPaleta();
 }
 $("seg-paleta").onclick = (e) => { const b = e.target.closest("[data-paleta]"); if (b) aplicarPaleta(b.dataset.paleta); };
 $("seg-tema").onclick = (e) => { const b = e.target.closest("[data-tema]"); if (b) aplicarTema(b.dataset.tema); };
