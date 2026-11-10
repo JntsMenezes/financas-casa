@@ -1026,7 +1026,7 @@ function render() {
   const passado = mes < mesAtual;
   const stat = (v, rot, cls = "") => `<div class="stat ${cls}"><b class="num">${curto(v)}</b><span>${rot}</span></div>`;
   const stats = entradas || saidas || guardado
-    ? `<div class="stats">${stat(entradas, passado ? "entrou" : "entra", "ent")}${stat(saidas, passado ? "saiu" : "sai", "sai")}${stat(guardado, passado ? "guardou" : "guarda", "gua")}</div>` : "";
+    ? `<div class="stats">${stat(entradas, passado ? "entrou" : "entra", "ent")}${stat(saidas, passado ? "saiu" : "sai", "sai")}${stat(guardado, passado ? "guardou" : "guarda", guardado > 0 ? "gua" : "")}</div>` : "";
   const blocoHoje = mes === mesAtual ? hojeHtml(hj) : "";
 
   // Avisos, cada um leva ao que precisa ser feito.
@@ -1220,7 +1220,6 @@ function itemHtml(l, hj, op = {}) {
   // No bloco de atrasados o título já diz o estado; o texto só repetiria.
   if (atrasado && !op.semEstado) textos.push("atrasado");
   else if (passou && !op.semEstado) textos.push("não entrou");
-  if (Number(l.valor) === 0) tags.push(`<span class="tag definir">valor a definir</span>`);
   if (estado.pendentes.has(l.id)) tags.push(`<span class="tag espera">aguardando internet</span>`);
   const meta = textos.map((t) => `<span class="mt">${t}</span>`).join("") + tags.join("");
   // Quem lançou fica no próprio círculo do check: foto ou inicial, na cor da pessoa.
@@ -1240,7 +1239,7 @@ function itemHtml(l, hj, op = {}) {
         ${meta ? `<div class="meta">${meta}</div>` : ""}
       </div>
       <div class="dir">
-        <div class="valor num ${l.tipo === "receita" ? "pos" : ""}">${l.tipo === "receita" ? "+" : "−"} ${brl.format(Number(l.valor))}</div>
+        ${Number(l.valor) === 0 ? '<div class="valor definir">a definir</div>' : `<div class="valor num ${l.tipo === "receita" ? "pos" : ""}">${l.tipo === "receita" ? "+" : "−"} ${brl.format(Number(l.valor))}</div>`}
         ${op.saldo && s != null ? `<div class="saldo-linha num ${s < 0 ? "neg" : ""}" title="Saldo depois deste lançamento">depois ${brl.format(s)}</div>` : ""}
       </div>
     </button>
@@ -2903,8 +2902,11 @@ function analiseAno(ano, meses, tot, cats) {
   // Quanto da renda vira poupança.
   const taxa = tot.ent > 0 ? tot.guardou / tot.ent : 0;
   out.push({
-    tom: taxa >= 0.15 ? "bom" : taxa >= 0.05 ? "atencao" : "ruim",
-    linhas: [
+    tom: taxa >= 0.15 ? "bom" : taxa > 0 ? "atencao" : "",
+    linhas: tot.guardou <= 0 ? [
+      `${vc("Vocês ainda não guardaram", "Você ainda não guardou")} nada nas caixinhas neste ano.`,
+      `Começar com ${b(100)} por mês na reserva já cria o hábito. Uma meta comum, mais para frente, é 10% do que entra: ${b(entMedia * 0.1)} por mês.`,
+    ] : [
       `${vc("Vocês guardam", "Você guarda")} ${pct(tot.guardou, tot.ent)}% do que entra.`,
       taxa >= 0.15 ? "Está dentro da faixa que costuma ser recomendada, de 10% a 20%."
         : `Uma meta comum é guardar de 10% a 20%. Com 10%, seriam ${b(entMedia * 0.1)} por mês.`,
@@ -3327,7 +3329,9 @@ function aplicarTema(t) {
   try { if (t === "auto") localStorage.removeItem("tema"); else localStorage.setItem("tema", t); } catch (e) {}
   for (const b of $("seg-tema").children) b.classList.toggle("ativo", b.dataset.tema === t);
   // A Noite é só escura: o Tema fica desligado enquanto ela estiver escolhida.
-  for (const b of $("seg-tema").children) b.disabled = paletaAtual() === "noite";
+  const soEscura = paletaAtual() === "noite";
+  $("seg-tema").hidden = soEscura;
+  $("tema-noite").hidden = !soEscura;
   for (const b of $("seg-paleta").children) b.classList.toggle("ativo", b.dataset.paleta === paletaAtual());
   const ativo = [...$("seg-paleta").children].find((b) => b.dataset.paleta === paletaAtual());
   if (ativo) $("assinatura").innerHTML = [...ativo.querySelectorAll(".amostra i")].map((i) => `<i style="${i.getAttribute("style")}"></i>`).join("") + `<span>Edição ${ativo.textContent.trim()}</span>`;
