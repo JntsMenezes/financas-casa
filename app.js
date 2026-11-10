@@ -97,6 +97,7 @@ const estado = {
   mes: null, // "AAAA-MM"
   filtro: "todos",
   verPassado: false,
+  verAtrasados: false,   // abre o item recolhido "N atrasadas"
   verAvisos: false,      // mostra todos os avisos em vez dos 2 mais importantes
   dadosEm: null,         // quando os dados da tela vieram do banco pela última vez
   editando: null,
@@ -783,14 +784,13 @@ function aperto(pts, hj, entradas) {
   return menor.saldo < limiar ? ` <span class="aperto">O dia mais apertado é ${Number(menor.data.slice(8))}, com <b class="num">${brl.format(menor.saldo)}</b>.</span>` : "";
 }
 
-// O que pede ação agora: o que passou da data sem check e o que é de hoje.
+// O que pede ação agora: o que passou da data sem check (recolhido num item só) e o que é de hoje.
 function hojeHtml(hj) {
   const atrasados = estado.lancs.filter((l) => !l.pago && l.data < hj);
   const deHoje = estado.lancs.filter((l) => l.data === hj);
-  const pagarAtras = atrasados.filter((l) => l.tipo === "despesa"), receberAtras = atrasados.filter((l) => l.tipo === "receita");
   const semCheckHoje = deHoje.filter((l) => !l.pago);
-  const titulo = atrasados.length ? "Hoje e pendentes" : "Hoje";
-  const cab = `<div class="hoje-cab" id="hoje">${diaCab(hj, titulo)}${semCheckHoje.length > 1 ? `<button class="link" type="button" data-check-hoje>Check em tudo de hoje</button>` : ""}</div>`;
+  const cab = `<div class="hoje-cab" id="hoje">${diaCab(hj, "Hoje")}${semCheckHoje.length > 1 ? `<button class="link" type="button" data-check-hoje>Check em tudo de hoje</button>` : ""}</div>`;
+  const atras = atrasados.length ? atrasadosHtml(atrasados, hj) : "";
   if (!atrasados.length && !deHoje.length) {
     return `<section class="bloco-hoje">${cab}<div class="em-dia"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Nada para hoje. Está tudo em dia.</span></div></section>`;
   }
@@ -798,16 +798,17 @@ function hojeHtml(hj) {
   const naConta = r2(estado.lancs.reduce((s, l) => (l.pago ? s + sinal(l) : s), 0));
   const ultimo = semCheckHoje[semCheckHoje.length - 1];
   const fimHoje = r2(naConta + semCheckHoje.reduce((s, l) => s + sinal(l), 0));
-  const sub = (t, cls = "") => `<div class="lista-sub ${cls}">${t}</div>`;
-  const linhas = [
-    pagarAtras.length ? sub(pagarAtras.length === 1 ? "Passou da data sem check" : `${pagarAtras.length} passaram da data sem check`, "atencao") + pagarAtras.map((l) => itemHtml(l, hj, { data: true, semEstado: true })).join("") : "",
-    receberAtras.length ? sub("Ainda não entrou") + receberAtras.map((l) => itemHtml(l, hj, { data: true, semEstado: true })).join("") : "",
-    deHoje.length ? (atrasados.length ? sub("De hoje") : "") + deHoje.map((l) => itemHtml(l, hj, { saldo: l === ultimo, depois: l === ultimo ? fimHoje : undefined })).join("") : "",
-  ].join("");
-  return `<section class="bloco-hoje" aria-label="${titulo}">${cab}
-    <div class="lista">${linhas}</div>
+  return `<section class="bloco-hoje" aria-label="Hoje">${atras}${cab}
+    ${deHoje.length ? `<div class="lista">${deHoje.map((l) => itemHtml(l, hj, { saldo: l === ultimo, depois: l === ultimo ? fimHoje : undefined })).join("")}</div>` : ""}
     ${!deHoje.length ? '<div class="nada-hoje">Nada lançado para hoje.</div>' : !semCheckHoje.length ? '<div class="nada-hoje">O de hoje já tem check.</div>' : ""}
   </section>`;
+}
+
+// Atrasados num item só, em cor neutra (atraso não é valor negativo). Ao tocar, abre agrupado por dia.
+function atrasadosHtml(lista, hj) {
+  const n = lista.length, aberto = estado.verAtrasados;
+  const relogio = svg('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>');
+  return `<button class="recolhido atrasos ${aberto ? "aberto" : ""}" id="atrasados" type="button" data-alternar-atrasados aria-expanded="${aberto}">${relogio}<span class="num">${n === 1 ? "1 atrasada" : `${n} atrasadas`} · ${aberto ? "esconder" : "ver"}</span>${IC.baixo}</button>${aberto ? diasHtml(lista, hj, false, { semEstado: true, semId: true, comMes: true }) : ""}`;
 }
 
 // A última coisa que a outra pessoa fez (dar check conta), para responder "ele pagou a luz?".
@@ -914,13 +915,13 @@ const nBrl = (v, k = "") => `<span class="n num ${v < 0 ? "neg" : ""}" data-n="$
 // Lembra os números da frase para animar só o que mudou no mesmo mês.
 let fraseAntes = { mes: null, hoje: null, fim: null };
 
-// Valor curto para a linha de números: R$ 860, R$ 13,5 mil, R$ 1,2 mi.
+// Valor curto para a linha de números: R$ 860, R$ 13,0 mil, R$ 1,2 mi. Sempre uma casa em mil e mi,
+// para "13,6 mil" nunca ficar ao lado de "13 mil".
 function curto(v) {
-  const a = Math.abs(v), f = (x, d) => x.toLocaleString("pt-BR", { maximumFractionDigits: d });
-  if (a >= 1e6) return `R$ ${f(v / 1e6, 1)}<small> mi</small>`;
-  if (a >= 1e4) return `R$ ${f(v / 1e3, 1)}<small> mil</small>`;
-  if (a >= 1e3) return `R$ ${f(v / 1e3, 2)}<small> mil</small>`;
-  return `R$ ${f(v, 0)}`;
+  const a = Math.abs(v), f = (x) => x.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  if (a >= 999.95e3) return `R$ ${f(v / 1e6)}<small> mi</small>`;
+  if (a >= 999.5) return `R$ ${f(v / 1e3)}<small> mil</small>`;
+  return `R$ ${Math.round(v).toLocaleString("pt-BR")}`;
 }
 
 function render() {
@@ -941,26 +942,36 @@ function render() {
   const aPagar = doMes.filter((l) => !l.pago && l.tipo === "despesa" && !ehCaixinha(l)).reduce((s, l) => s + Number(l.valor), 0);
   const aReceber = doMes.filter((l) => !l.pago && l.tipo === "receita" && !ehCaixinha(l)).reduce((s, l) => s + Number(l.valor), 0);
   const guardado = guardadoEm(doMes);
-  let titulo, apoio;
+  let titulo, apoio = "";
+  // Se a projeção fica negativa, a frase ganha um momento do meio: o dia de menor saldo, em vermelho.
+  // Embaixo, a faixa exata: do primeiro ao último dia negativo, ou "a partir de" se não volta a ficar positivo.
+  const frente = mes >= mesAtual ? pts.filter((p) => p.data >= hj) : [];
+  const negs = frente.filter((p) => p.saldo < 0);
+  const nDia = (d) => Number(d.slice(8));
+  let meio = "", faixa = "";
+  if (negs.length) {
+    const pior = negs.reduce((a, p) => (p.saldo < a.saldo ? p : a), negs[0]);
+    if (pior.data !== fim) meio = `<span class="l2 meio">Dia ${nDia(pior.data)}, ${nBrl(pior.saldo, "meio")}.</span>`;
+    const ini = negs[0].data, ult = negs[negs.length - 1].data;
+    faixa = ult === fim ? `Negativo a partir do dia ${nDia(ini)}.` : ini === ult ? `Negativo no dia ${nDia(ini)}.` : `Negativo do dia ${nDia(ini)} ao dia ${nDia(ult)}.`;
+  }
   if (mes === mesAtual) {
-    titulo = `Hoje, ${nBrl(naConta, "hoje")}.<span class="l2">Dia ${dia}, ${nBrl(fimMes, "fim")}.</span>`;
-    const partes = [aPagar && `faltam pagar <b class="num">${brl.format(aPagar)}</b>`, aReceber && `entrar <b class="num">${brl.format(aReceber)}</b>`].filter(Boolean);
-    apoio = (partes.length ? `Até lá ${partes.join(" e ")}` : doMes.length ? "Tudo do mês já tem check" : `Nada lançado em ${nomeDoMes(mes)} ainda`) +
-      (guardado > 0 ? `, e ${vc("vocês guardam", "você guarda")} <b class="num">${brl.format(guardado)}</b>.` : ".") + aperto(pts, hj, entradas);
+    titulo = `Hoje, ${nBrl(naConta, "hoje")}.${meio}<span class="l2">Dia ${dia}, ${nBrl(fimMes, "fim")}.</span>`;
+    if (!faixa) apoio = doMes.length ? aperto(pts, hj, entradas).trim() : `Nada lançado em ${nomeDoMes(mes)} ainda.`;
   } else {
     titulo = mes > mesAtual
-      ? `Hoje, ${nBrl(naConta, "hoje")}.<span class="l2">Dia ${dia}, ${nBrl(fimMes, "fim")}.</span>`
+      ? `Hoje, ${nBrl(naConta, "hoje")}.${meio}<span class="l2">Dia ${dia}, ${nBrl(fimMes, "fim")}.</span>`
       : `${nomeDoMes(mes).charAt(0).toUpperCase() + nomeDoMes(mes).slice(1)} fechou com ${nBrl(fimMes, "fim")}.`;
     const inicio = saldoAte(somarDias(mes + "-01", -1));
     apoio = (mes > mesAtual ? `${nomeDoMes(mes).charAt(0).toUpperCase() + nomeDoMes(mes).slice(1)} começa com <b class="num">${brl.format(inicio)}</b> que sobram de ${nomeDoMes(somarMeses(mes + "-01", -1))}. ` : "") +
       `${mes > mesAtual ? "Entram" : "Entraram"} <b class="num">${brl.format(entradas)}</b> e ${mes > mesAtual ? "saem" : "saíram"} <b class="num">${brl.format(saidas)}</b>` +
-      (guardado > 0 ? `; <b class="num">${brl.format(guardado)}</b> ${mes > mesAtual ? "vão" : "foram"} para as caixinhas.` : ".") + (mes > mesAtual ? aperto(pts, hj, entradas) : "");
+      (guardado > 0 ? `; <b class="num">${brl.format(guardado)}</b> ${mes > mesAtual ? "vão" : "foram"} para as caixinhas.` : ".") + (mes > mesAtual && !faixa ? aperto(pts, hj, entradas) : "");
   }
   const inicioMes = saldoAte(somarDias(mes + "-01", -1));
   const passado = mes < mesAtual;
   const stat = (v, rot, cls = "") => `<div class="stat ${cls}"><b class="num">${curto(v)}</b><span>${rot}</span></div>`;
   const stats = entradas || saidas || guardado
-    ? `<div class="stats">${stat(entradas, passado ? "entrou" : "entra", "ent")}${stat(saidas, passado ? "saiu" : "sai", "sai")}${guardado > 0 ? stat(guardado, passado ? "guardou" : "guarda", "gua") : ""}</div>` : "";
+    ? `<div class="stats">${stat(entradas, passado ? "entrou" : "entra", "ent")}${stat(saidas, passado ? "saiu" : "sai", "sai")}${stat(guardado, passado ? "guardou" : "guarda", "gua")}</div>` : "";
   const blocoHoje = mes === mesAtual ? hojeHtml(hj) : "";
 
   // Avisos, cada um leva ao que precisa ser feito.
@@ -1024,7 +1035,7 @@ function render() {
       ${casalHtml()}
       ${faltaPoucoHtml()}
       <div class="frase"><h2>${titulo}</h2>${(!navigator.onLine || estado.cargaFalhou) && estado.dadosEm
-        ? `<p class="velho">${IC.alerta}<span>Atualizado ${((q) => (/^\d/.test(q) ? "em " + q : q))(haQuanto(estado.dadosEm))}; ${navigator.onLine ? "não consegui buscar o que mudou depois" : "sem internet agora"}.</span></p>` : ""}<p>${apoio}</p>${stats}${mes === mesAtual ? '<button class="link conferir" type="button" data-conferir>Conferir com o banco</button>' : ""}</div>
+        ? `<p class="velho">${IC.alerta}<span>Atualizado ${((q) => (/^\d/.test(q) ? "em " + q : q))(haQuanto(estado.dadosEm))}; ${navigator.onLine ? "não consegui buscar o que mudou depois" : "sem internet agora"}.</span></p>` : ""}${faixa ? `<p class="faixa-neg">${faixa}</p>` : ""}${apoio ? `<p>${apoio}</p>` : ""}${stats}${mes === mesAtual ? '<button class="link conferir" type="button" data-conferir>Conferir com o banco</button>' : ""}</div>
       ${blocoHoje}
       ${avisos.length ? `<div class="avisos">${(estado.verAvisos ? avisos : avisos.slice(0, 2)).join("")}${avisos.length > 2
         ? `<button class="link mais-avisos" type="button" data-mais-avisos>${estado.verAvisos ? "Mostrar menos" : `Mais ${avisos.length - 2} ${avisos.length - 2 === 1 ? "aviso" : "avisos"}`}</button>` : ""}</div>` : ""}
@@ -1076,15 +1087,16 @@ function diaCab(data, extra = "") {
   return `<span class="d-cab"><b class="d-num">${Number(data.slice(8))}</b><span class="d-sem">${sem}${extra ? ` · ${extra}` : ""}</span></span>`;
 }
 
-function diasHtml(lista, hj, entrar = false) {
+function diasHtml(lista, hj, entrar = false, op = {}) {
   const grupos = new Map();
   for (const l of lista) { if (!grupos.has(l.data)) grupos.set(l.data, []); grupos.get(l.data).push(l); }
   let out = "", i = 0;
   for (const [data, itens] of grupos) {
     const futuro = data >= hj && estado.filtro === "todos";
-    out += `<div class="dia ${entrar ? "entra" : ""}" id="dia-${data}"${entrar ? ` style="--i:${Math.min(i++, 6)}"` : ""}>
-      <div class="dia-cab">${diaCab(data)}</div>
-      <div class="lista">${itens.map((l) => itemHtml(l, hj, { saldo: futuro })).join("")}</div>
+    const extra = op.comMes && data.slice(0, 7) !== hj.slice(0, 7) ? mesCurto(data) : "";
+    out += `<div class="dia ${entrar ? "entra" : ""}"${op.semId ? "" : ` id="dia-${data}"`}${entrar ? ` style="--i:${Math.min(i++, 6)}"` : ""}>
+      <div class="dia-cab">${diaCab(data, extra)}</div>
+      <div class="lista">${itens.map((l) => itemHtml(l, hj, { saldo: futuro, semEstado: op.semEstado })).join("")}</div>
     </div>`;
   }
   return out;
@@ -1125,8 +1137,7 @@ function extratoHtml(doMes, mes, hj) {
   }
   const mesAtual = mes === hj.slice(0, 7);
   if (atrasados.length && !mesAtual) {
-    out += `<div class="secao-tit" id="atrasados">Passaram da data sem check</div>
-      <div class="lista">${atrasados.map((l) => itemHtml(l, hj, { data: true })).join("")}</div>`;
+    out += atrasadosHtml(atrasados, hj);
   }
   if (mesAtual) {
     // Hoje e atrasados ficam no topo da tela; aqui só a marca do dia, para o extrato seguir.
@@ -1141,29 +1152,33 @@ function itemHtml(l, hj, op = {}) {
   const atrasado = passou && l.tipo === "despesa"; // receita que não entrou não é culpa de ninguém
   const baixado = l.pago && l.data < hj;
   const s = op.depois !== undefined ? op.depois : estado.saldoApos.get(l.id);
-  const tags = [];
-  if (op.data) tags.push(`<span class="tag num">${dataCurta(l.data)}</span>`);
-  if (l.parcelas) tags.push(`<span class="tag num">${l.parcela}/${l.parcelas}</span>`);
+  // Texto pequeno e neutro (categoria, parcela, fixa); com fundo, só o que é de outro tipo.
+  const textos = [], tags = [];
+  if (!l.caixinha_id) textos.push(esc(nomeCatDe(l)));
+  if (l.parcelas) textos.push(`<span class="num">${l.parcela}/${l.parcelas}</span>`);
   if (l.caixinha_id) tags.push(`<span class="tag guardar">${l.tipo === "despesa" ? "guardar" : "resgate"}</span>`);
-  else if (l.recorrente) tags.push(`<span class="tag">fixa</span>`);
-  // No bloco de hoje o subtítulo já diz o estado; a etiqueta só repetiria.
-  if (atrasado && !op.semEstado) tags.push(`<span class="tag atraso">atrasado</span>`);
-  else if (passou && !op.semEstado) tags.push(`<span class="tag">não entrou</span>`);
-  if (l.criado_por) {
-    const foto = estado.membros.get(l.criado_por)?.foto;
-    tags.push(`<span class="tag quem q${ordemDe(l.criado_por)} ${foto ? "com-foto" : ""}" title="Lançado por ${esc(nomeDe(l.criado_por))}">${foto ? `<img src="${foto}" alt="">` : ""}${esc(nomeDe(l.criado_por))}</span>`);
-  }
+  else if (l.recorrente) textos.push("fixa");
+  // No bloco de atrasados o título já diz o estado; o texto só repetiria.
+  if (atrasado && !op.semEstado) textos.push("atrasado");
+  else if (passou && !op.semEstado) textos.push("não entrou");
   if (Number(l.valor) === 0) tags.push(`<span class="tag definir">valor a definir</span>`);
   if (estado.pendentes.has(l.id)) tags.push(`<span class="tag espera">aguardando internet</span>`);
+  const meta = textos.map((t) => `<span class="mt">${t}</span>`).join("") + tags.join("");
+  // Quem lançou fica no próprio círculo do check: foto ou inicial, na cor da pessoa.
+  let quem = "", quemTit = "";
+  if (l.criado_por) {
+    const foto = estado.membros.get(l.criado_por)?.foto, nome = nomeDe(l.criado_por) || "";
+    quemTit = ` title="Lançado por ${esc(nome)}"`;
+    quem = `<span class="quem bg-q${ordemDe(l.criado_por)} ${foto ? "com-foto" : ""}" aria-hidden="true">${foto ? `<img src="${foto}" alt="">` : esc((nome || "?").charAt(0).toUpperCase())}</span>`;
+  }
   const feito = l.tipo === "receita" ? "recebido" : "pago";
   return `<div class="item ${baixado ? "baixado" : ""}">
-    <button class="check ${l.pago ? "ok" : ""} ${atrasado ? "atrasado" : ""}" data-check="${l.id}" aria-pressed="${l.pago}" aria-label="${esc(l.descricao)}: ${l.pago ? `tirar check` : `marcar como ${feito}`}"><span class="bola">${IC.check}</span></button>
+    <button class="check ${l.pago ? "ok" : ""}" data-check="${l.id}" aria-pressed="${l.pago}"${quemTit} aria-label="${esc(l.descricao)}: ${l.pago ? `tirar check` : `marcar como ${feito}`}"><span class="bola">${IC.check}</span>${quem}</button>
     <button class="corpo" data-editar="${l.id}">
-      <span class="cat-ic ${catCls(l)}" title="${esc(nomeCatDe(l))}">${iconeDe(l)}</span>
       <div class="txt">
         <div class="desc">${esc(l.descricao)}</div>
         ${l.observacao ? `<div class="obs" title="${esc(l.observacao)}">${esc(l.observacao)}</div>` : ""}
-        ${tags.length ? `<div class="meta">${tags.join("")}</div>` : ""}
+        ${meta ? `<div class="meta">${meta}</div>` : ""}
       </div>
       <div class="dir">
         <div class="valor num ${l.tipo === "receita" ? "pos" : ""}">${l.tipo === "receita" ? "+" : "−"} ${brl.format(Number(l.valor))}</div>
@@ -1201,6 +1216,7 @@ $("conteudo").addEventListener("click", async (ev) => {
   }
   if (t("[data-check]")) { await alternarPago(t("[data-check]").dataset.check); return; }
   if (t("[data-editar]")) { abrirLanc(estado.lancs.find((l) => l.id === t("[data-editar]").dataset.editar)); return; }
+  if (t("[data-alternar-atrasados]")) { estado.verAtrasados = !estado.verAtrasados; render(); return; }
   if (t("[data-alternar-passado]")) { estado.verPassado = !estado.verPassado; estado.animarPassado = estado.verPassado; render(); return; }
   if (t("[data-abrir-series]")) { renderSeries(); abrirPainel($("painel-series")); return; }
   if (t("[data-nova-receita]")) { abrirLanc(null, { tipo: "receita", data: estado.mes + "-05" }); return; }
@@ -1215,6 +1231,7 @@ $("conteudo").addEventListener("click", async (ev) => {
   if (t("[data-ir-atrasados]")) {
     estado.filtro = "todos";
     estado.mes = t("[data-ir-atrasados]").dataset.irAtrasados;
+    estado.verAtrasados = true;
     render();
     $("atrasados")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -3260,7 +3277,7 @@ function aplicarTema(t) {
   if (bg) document.querySelector('meta[name="theme-color"]').content = bg;
 }
 function paletaAtual() {
-  try { return localStorage.getItem("paleta") || "ninho"; } catch (e) { return "ninho"; }
+  try { const p = localStorage.getItem("paleta"); return p === "rosa" || p === "noite" ? p : "ninho"; } catch (e) { return "ninho"; }
 }
 function aplicarPaleta(p) {
   if (p === "ninho") delete document.documentElement.dataset.paleta;
