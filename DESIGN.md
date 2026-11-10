@@ -1,6 +1,6 @@
 ---
 name: Finanças da Casa
-description: PWA de finanças a dois, calmo e quente, no mundo do logo Ninho (creme, verde-ninho e um ovo âmbar), que lê o mês em uma frase com o número em verde.
+description: PWA de finanças a dois, calmo e quente, no mundo do logo Ninho (creme, verde-ninho e um ovo âmbar), que lê o mês em uma frase com o número na cor de ação. Três paletas por celular (Ninho, Rosa, Noite) sobre os mesmos papéis.
 colors:
   fundo: "#faf6ee"
   superficie: "#fffdf8"
@@ -9,23 +9,22 @@ colors:
   tinta-suave: "#675f53"
   linha: "#e8dfcf"
   check-borda: "#8a8172"
-  primaria: "#123f3b"
-  primaria-fundo: "#e3ebe4"
-  sobre-primaria: "#f4ecdd"
-  destaque: "#1c6b5d"
-  ovo: "#e3a33b"
-  ovo-forte: "#c98a22"
-  ovo-fundo: "#f7ead2"
-  ovo-tinta: "#7a4f0c"
-  topo: "#f1e7d4"
+  acao: "#123f3b"
+  sobre-acao: "#f4ecdd"
+  acao-texto: "#1c6b5d"
+  acao-fundo: "#e3ebe4"
+  guardado: "#e3a33b"
+  guardado-texto: "#7a4f0c"
+  guardado-fundo: "#f7ead2"
+  negativo: "#9b1c13"
+  negativo-fundo: "#fbe8e3"
+  aviso-ruim-texto: "#7a1a12"
   verde: "#0f766e"
   verde-fundo: "#e1efe8"
-  vermelho: "#b42318"
-  vermelho-fundo: "#fbe8e3"
-  aviso-ruim-texto: "#7a1a12"
   ambar: "#9a5b00"
   ambar-fundo: "#f8ead0"
   aviso-atencao-texto: "#6b3e00"
+  topo: "#f1e7d4"
   pessoa-1: "#3f51a8"
   pessoa-2: "#a3367a"
   vidro: "rgba(250, 246, 238, .84)"
@@ -35,32 +34,46 @@ colors:
   tinta-escuro: "#f1e9da"
   tinta-suave-escuro: "#a59d8d"
   linha-escuro: "rgba(241,233,218,.09)"
-  check-borda-escuro: "rgba(241,233,218,.42)"
-  primaria-escuro: "#f4ecdd"
-  primaria-fundo-escuro: "rgba(244,236,221,.1)"
-  sobre-primaria-escuro: "#123f3b"
-  destaque-escuro: "#9fd3bf"
-  ovo-escuro: "#e3a33b"
-  ovo-tinta-escuro: "#f0c27a"
-  topo-escuro: "#13241f"
+  acao-escuro: "#f4ecdd"
+  sobre-acao-escuro: "#123f3b"
+  acao-texto-escuro: "#9fd3bf"
+  guardado-texto-escuro: "#f0c27a"
+  negativo-escuro: "#f08a7e"
   verde-escuro: "#8fd3bf"
-  verde-fundo-escuro: "rgba(143,211,191,.11)"
-  vermelho-escuro: "#f08a7e"
-  vermelho-fundo-escuro: "rgba(240,138,126,.11)"
-  aviso-ruim-texto-escuro: "#f6b3a9"
   ambar-escuro: "#f2b54d"
-  ambar-fundo-escuro: "rgba(242,181,77,.11)"
-  aviso-atencao-texto-escuro: "#f5cf86"
   pessoa-1-escuro: "oklch(.78 .1 265)"
   pessoa-2-escuro: "oklch(.8 .11 345)"
-  vidro-escuro: "rgba(14, 25, 23, .8)"
+  rosa-fundo: "#edbec6"
+  rosa-superficie: "#fffaf9"
+  rosa-tinta: "#2a2b2e"
+  rosa-tinta-suave: "#5a4f4c"
+  rosa-acao: "#22e3a2"
+  rosa-acao-texto: "#085a3f"
+  rosa-guardado: "#d99a2b"
+  rosa-guardado-texto: "#6b4408"
+  rosa-fundo-escuro: "#1e1619"
+  rosa-superficie-escuro: "#2a2024"
+  noite-fundo: "#0b1430"
+  noite-superficie: "#142049"
+  noite-tinta: "#eef1f8"
+  noite-tinta-suave: "#a3abc4"
+  noite-acao: "#3d6bff"
+  noite-acao-texto: "#8eaaff"
+  noite-guardado: "#ffa53d"
 typography:
   display:
     fontFamily: "Manrope, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
     fontSize: "clamp(31px, 9vw, 40px)"
-    fontWeight: 800
+    fontWeight: 750
     lineHeight: 1.08
-    letterSpacing: "-.035em"
+    letterSpacing: "-.03em"
+  stat:
+    fontFamily: "Manrope, system-ui, sans-serif"
+    fontSize: "clamp(20px, 6vw, 25px)"
+    fontWeight: 800
+    lineHeight: 1.1
+    letterSpacing: "-.02em"
+    fontFeature: "tnum"
   headline:
     fontFamily: "Manrope, system-ui, sans-serif"
     fontSize: "34px"
@@ -103,7 +116,6 @@ typography:
     fontFeature: "tnum"
 rounded:
   tag: "6px"
-  selo: "7px"
   chip: "10px"
   campo: "12px"
   raio: "14px"
@@ -120,8 +132,8 @@ spacing:
   xl: "22px"
 components:
   button-primary:
-    backgroundColor: "{colors.primaria}"
-    textColor: "{colors.sobre-primaria}"
+    backgroundColor: "{colors.acao}"
+    textColor: "{colors.sobre-acao}"
     typography: "{typography.body}"
     rounded: "{rounded.raio}"
     padding: "13px"
@@ -134,11 +146,11 @@ components:
     height: "50px"
   button-text:
     backgroundColor: "transparent"
-    textColor: "{colors.primaria}"
+    textColor: "{colors.acao-texto}"
     height: "44px"
   button-danger:
-    backgroundColor: "{colors.vermelho}"
-    textColor: "{colors.sobre-primaria}"
+    backgroundColor: "{colors.negativo}"
+    textColor: "{colors.sobre-acao}"
     rounded: "{rounded.raio}"
     height: "50px"
   chip:
@@ -146,12 +158,12 @@ components:
     textColor: "{colors.tinta-suave}"
     rounded: "{rounded.chip}"
     padding: "0 14px"
-    height: "40px"
+    height: "44px"
   chip-active:
-    backgroundColor: "{colors.primaria-fundo}"
-    textColor: "{colors.primaria}"
+    backgroundColor: "{colors.acao-fundo}"
+    textColor: "{colors.acao}"
     rounded: "{rounded.chip}"
-    height: "40px"
+    height: "44px"
   input:
     backgroundColor: "{colors.campo}"
     textColor: "{colors.tinta}"
@@ -161,7 +173,7 @@ components:
     backgroundColor: "{colors.superficie}"
     textColor: "{colors.tinta-suave}"
     typography: "{typography.label}"
-    rounded: "{rounded.selo}"
+    rounded: "{rounded.pilula}"
     padding: "0 10px"
     height: "26px"
   lista:
@@ -172,9 +184,15 @@ components:
     typography: "{typography.item}"
     padding: "6px 14px 6px 6px"
     height: "60px"
+  atalho:
+    backgroundColor: "{colors.superficie}"
+    textColor: "{colors.tinta}"
+    rounded: "{rounded.raio}"
+    padding: "10px 11px"
+    height: "64px"
   fab:
-    backgroundColor: "{colors.primaria}"
-    textColor: "{colors.sobre-primaria}"
+    backgroundColor: "{colors.acao}"
+    textColor: "{colors.sobre-acao}"
     rounded: "{rounded.fab}"
     size: "60px"
   painel:
@@ -182,7 +200,7 @@ components:
     rounded: "{rounded.painel}"
     padding: "8px 18px 18px"
   aviso-ruim:
-    backgroundColor: "{colors.vermelho-fundo}"
+    backgroundColor: "{colors.negativo-fundo}"
     textColor: "{colors.aviso-ruim-texto}"
     rounded: "{rounded.raio}"
     padding: "12px 14px"
@@ -197,193 +215,179 @@ components:
 
 # Design System: Finanças da Casa
 
-## Mundo Ninho (29/10/2026): vale mais que o texto antigo abaixo
-
-O app saiu do visual do portfólio (ciano neon, grade, JetBrains Mono) e entrou no mundo do logo Ninho.
-
-- **Fundo:** creme quente no claro (`#faf6ee`), verde-noite no escuro (`#0e1917`). O alto da home tem só um degradê do creme do logo (`topo`) sumindo no fundo. Sem grade e sem brilho.
-- **Ações:** Verde Ninho `#123f3b` com texto creme no claro (como o ícone); creme com texto verde no escuro. Links e textos de ação em `destaque`.
-- **Número da frase:** `destaque` (`#1c6b5d` / `#9fd3bf`), para separar da tinta.
-- **A Regra do Ovo:** o âmbar `#e3a33b` aparece só no que é guardado (caixinhas, "guardado" no resumo, ícone de caixinha) e no hoje (ponto no gráfico de saldo, ovinho na divisória "Hoje"). Não é cor de aviso: aviso usa `ambar`, mais escuro e sempre com texto.
-- **Letras:** só Manrope. Valores e datas com `tabular-nums`, sem mono. Rótulos em letra normal, sem maiúsculas espaçadas; cabeçalho do dia com a primeira letra maiúscula. Frase em 750.
-- **Selos:** pílula, Manrope 600.
-- **Abertura:** o ninho se desenha sobre o fundo do app (verde no claro, creme no escuro) e o ovo âmbar assenta.
-- **Verde dos valores no escuro:** suavizado de `#5eead4` para `#8fd3bf` (pedido do usuário).
-
-Onde o texto abaixo fala em ciano, mono, grade ou brilho, leia com os valores desta seção.
-
 ## Overview
 
 **Creative North Star: "O Extrato que Fala"**
 
-O app é um painel noturno de leitura do mês. A tela abre com uma frase grande em Manrope 800, de letras juntas, e o número que importa vem aceso em ciano. Tudo em volta é instrumento: rótulos curtos em JetBrains Mono maiúsculo, valores em mono tabular, superfícies finas de 1px, uma grade quase invisível com um brilho ciano só no alto da tela. O mundo visual é o mesmo do portfólio pessoal do dono do projeto, traduzido para um app de uso diário no celular.
+O app lê o mês em voz alta. A tela abre com uma frase grande em Manrope 750, de letras juntas, que diz quanto há hoje, o dia mais apertado (se ficar negativo) e como o mês termina, com o número na cor de ação. Em volta, só o que ajuda a agir: três números do mês (entra, sai, guarda), a lista do que vence hoje e as barras do saldo dia a dia. O mundo visual é o do logo Ninho: creme quente, verde-ninho nas ações e um ovo âmbar que marca o que é guardado e o dia de hoje.
 
-A densidade é de app de bolso: uma coluna de até 560px, alvos de toque de 44px ou mais, e listas compactas de 60px por linha. Em tela larga (900px ou mais) vira duas colunas, com o resumo fixo à esquerda e o extrato à direita. Há dois temas com o mesmo peso: escuro (#0a0b0f) e claro (#f3f7f9). O tema segue o sistema por padrão e pode ser fixado nos ajustes.
+A densidade é de app de bolso, usado com uma mão: uma coluna de até 560px, alvos de toque de 44px ou mais, itens de 60px. A partir de 900px, vira duas colunas, com o resumo à esquerda e o extrato à direita. Cada celular escolhe a própria paleta (Ninho, Rosa ou Noite) e o tema (automático, claro, escuro; a Noite é só escura). Todas as paletas preenchem os mesmos papéis, então o desenho não muda, só a cor.
 
-A calma vem da contenção. O ciano marca o que entra, o que é positivo e onde agir; vermelho e âmbar só aparecem quando pedem ação. As duas pessoas da casa têm cada uma a sua cor, usada em pontos pequenos (iniciais, bolinha de quem lançou), nunca em blocos.
+A calma vem da contenção. Vermelho aparece só para valor ou dia negativo; âmbar de aviso só quando há algo a fazer. As duas pessoas da casa têm cada uma a sua cor, tirada da paleta que cada uma escolheu, e ela aparece só em pontos pequenos.
 
 **Key Characteristics:**
-- Frase de leitura em Manrope 800 como peça principal, com o número em ciano.
-- Rótulos e valores em JetBrains Mono, com números tabulares.
-- Superfícies chapadas com borda de 1px e raio de 14px; profundidade quase nula.
-- Grade fina e brilho ciano só no topo, sumindo por máscara.
-- Selos com bolinha de status ("ao vivo", "sem internet").
-- Dois temas equivalentes, escuro e claro, nos mesmos tokens.
+- Frase de leitura em Manrope 750 como peça principal; número em `acao-texto`, negativo em `negativo`.
+- Só Manrope; valores com `tabular-nums`; sem mono e sem maiúsculas espaçadas.
+- Superfícies chapadas com borda de 1px e raio de 14px; sombra só no que flutua.
+- Âmbar (o ovo) só no guardado e no hoje.
+- Três paletas por celular sobre os mesmos papéis: `--fundo`, `--acao`, `--guardado`, `--negativo`.
+- Presença do casal: iniciais, "ao vivo", quem lançou cada item no próprio círculo do check.
 
 ## Colors
 
-Fundo quase preto (ou névoa fria no claro), tinta fria, um único acento ciano e três cores de estado usadas com parcimônia.
+Creme quente e verde-ninho, um ovo âmbar e um vermelho que só aparece para negativo.
 
 ### Primary
-- **Ciano de Sinal** (`primaria`, oklch .82 .14 210 no escuro; azul-petróleo profundo no claro): o número-chave da frase, botão principal, botão +, chip ativo, foco, cursor dos campos, barras positivas do saldo previsto e a divisória de "Hoje". No claro ele escurece para manter contraste de texto sobre fundo branco.
-- **Véu Ciano** (`primaria-fundo`): fundo de chip ativo, seleção de texto e anel de foco dos campos (3px).
+- **Verde Ninho** (`acao`, #123f3b no claro; creme #f4ecdd no escuro): botão principal, botão +, check marcado, chip ativo. Texto sobre ele em `sobre-acao`.
+- **Verde da Frase** (`acao-texto`, #1c6b5d / #9fd3bf): número da frase, links e textos de ação, cabeçalho de Hoje. É a mesma ação em tom de texto (4,5:1 sobre o fundo).
 
 ### Secondary
-- **Menta** (`verde`): o que já foi pago ou recebido (bola do check), dinheiro guardado nas caixinhas, valores de entrada na lista, bolinha do selo "ao vivo". Fundo correspondente (`verde-fundo`) em etiquetas "guardar" e ícones de caixinha.
+- **Ovo** (`guardado`, #e3a33b): caixinhas, "guarda" no resumo quando é maior que zero, ícone de caixinha, ponto de hoje no gráfico, ovinho na divisória de Hoje. Em texto, `guardado-texto`.
 
 ### Tertiary
-- **Vermelho Crítico** (`vermelho`): saldo previsto negativo (barras e número da frase), aviso que exige ação, botão de apagar. Com fundo próprio (`vermelho-fundo`) e texto escuro dedicado (`aviso-ruim-texto`).
-- **Âmbar de Atenção** (`ambar`): lançamentos que passaram da data sem check, limite de categoria perto de estourar, selo "sem internet". Com `ambar-fundo` e `aviso-atencao-texto`.
+- **Negativo** (`negativo`, #9b1c13 no claro; salmão #f08a7e no escuro): comum a todas as paletas. Só para valor ou dia negativo (linha do pior dia na frase, barras abaixo do zero, aviso de negativo) e botão de apagar.
+- **Atenção** (`ambar`, #9a5b00): limite de categoria perto de estourar, selo "sem internet", avisos que pedem ação sem ser negativo. Sempre com texto (`aviso-atencao-texto`).
+- **Verde de entrada** (`verde`, #0f766e / #8fd3bf): valores de entrada na lista e barras de entrada.
+
+### Paletas (Ajustes > Cores, por celular)
+- **Ninho** (padrão): os valores acima, claro e escuro.
+- **Rosa:** fundo #edbec6 (escolhido pelo dono), superfície #fffaf9, tinta grafite #2a2b2e, ação menta #22e3a2 com texto de ação #085a3f, guardado #d99a2b. Escuro em ameixa #1e1619. A luz do alto é branca.
+- **Noite:** só escura. Fundo azul-tinta #0b1430, superfície #142049, ação azul #3d6bff (texto #8eaaff), guardado #ffa53d. Com a Noite, o seletor de Tema some e aparece a explicação.
 
 ### Pessoas da casa
-- **Pessoa 1** (`pessoa-1`): igual ao ciano principal.
-- **Pessoa 2** (`pessoa-2`): magenta suave (oklch .8 .12 330 no escuro).
-Usadas só nas iniciais do casal, na bolinha de "lançou por último" e na etiqueta de autor de cada item.
+- **Pessoa 1 / Pessoa 2** (`--q1`, `--q2`): cada pessoa leva a cor de ação da paleta que escolheu (ninho #1c6b5d/#9fd3bf, rosa #c2547a/#f0a6b8, noite #3d6bff/#8eaaff). Se as duas escolherem a mesma paleta, a outra pessoa recebe a vizinha. A inicial vai em tinta escura ou clara, a que der mais contraste (`--q1-tx`, `--q2-tx`, calculados no app).
 
 ### Neutral
-- **Noite** (`fundo-escuro`) / **Névoa Fria** (`fundo`): fundo da página.
-- **Placa** (`superficie`): listas, cartões de barras, chips, painéis de baixo para cima.
-- **Tinta** (`tinta`) e **Tinta Suave** (`tinta-suave`): texto principal e texto de apoio, rótulos, datas, segunda linha da frase.
-- **Fio** (`linha`): todas as bordas de 1px, divisórias entre itens, trilho das barras.
-- **Vidro** (`vidro`): barra do topo depois de rolar, com desfoque de 14px.
-- **Grade** e **Brilho** (`grade`, `brilho`): exclusivos do fundo do topo da home.
+- **Creme** (`fundo`) / **Verde-noite** (`fundo-escuro`): fundo da página. No alto da home, um degradê de `topo` sumindo no fundo.
+- **Placa** (`superficie`): listas, cartões, chips, painéis.
+- **Tinta** e **Tinta Suave**: texto principal e de apoio.
+- **Fio** (`linha`): bordas de 1px e divisórias.
+- **Vidro** (`vidro`): barra do topo depois de rolar.
 
 ### Named Rules
-**A Regra do Sinal Único.** O ciano é o único acento. Ele marca número-chave, ação e positivo; não vira fundo de bloco, nem decoração.
+**A Regra do Ovo.** O âmbar marca só o que é guardado e o dia de hoje. Zero guardado fica em tinta neutra. Âmbar não é cor de aviso.
 
-**A Regra do Alarme com Motivo.** Vermelho e âmbar só aparecem quando há algo a fazer (saldo negativo, atraso, limite). Um estado normal nunca usa cor de estado.
+**A Regra do Vermelho Só no Negativo.** Vermelho aparece para valor ou dia negativo e para apagar. Atraso, limite e meta não usam vermelho; a Visão do ano nunca pinta "guardam 0%" de vermelho.
 
-**A Regra das Duas Cores Pequenas.** As cores das pessoas aparecem só em pontos de até 30px (iniciais, bolinhas, etiquetas), nunca em fundos de seção ou gráficos.
+**A Regra dos Papéis Comuns.** Toda paleta define `--fundo`, `--acao`, `--sobre-acao`, `--acao-texto`, `--guardado`, `--guardado-texto`; `--negativo` é o mesmo em todas. Nenhuma ação ou guardado é vermelho.
+
+**A Regra das Duas Cores Pequenas.** As cores das pessoas ficam em pontos de até 30px (iniciais, círculo de quem lançou), nunca em blocos ou gráficos.
 
 ## Typography
 
 **Display Font:** Manrope (variável 200–800, auto-hospedada em `fonts/`), com system-ui de reserva
 **Body Font:** Manrope
-**Label/Mono Font:** JetBrains Mono (variável 100–800, auto-hospedada), com ui-monospace de reserva
 
-**Character:** Manrope apertada e pesada fala a frase como manchete; JetBrains Mono dá o tom de instrumento a rótulos, datas e valores. A dupla é a mesma do portfólio.
+**Character:** uma família só, apertada e pesada na frase, normal no resto. Números sempre tabulares.
 
 ### Hierarchy
-- **Display** (800, clamp 31–40px, 38px em tela larga, entrelinha 1.08, -.035em, `text-wrap: balance`): a frase do mês na home. A segunda linha vem em tinta suave, com o número em tinta normal.
-- **Headline** (650, 34px, entrelinha 1.02): total das caixinhas.
-- **Title** (650, 20px, -.02em): título dos painéis. O título do mês no topo usa 650 a 16.5px.
-- **Body** (400, 16px, entrelinha 1.45): texto corrido e campos (16px também evita zoom no iOS).
-- **Apoio** (400, 15.5px, entrelinha 1.5, até 46ch): linha abaixo da frase; números nela vão em negrito 700 na cor de tinta.
-- **Item** (500, 15.5px): descrição de cada lançamento, até 2 linhas.
-- **Valor** (JetBrains Mono 500, 14px, -.03em, tabular): valores da lista, rótulos da fita (14px), saldo após cada item (11.5px).
-- **Label** (JetBrains Mono, 10.5–11.5px, .06–.08em, MAIÚSCULAS): rótulos de dados da fita ("Entra", "Gastos", "Guardado"), cabeçalho do gráfico de barras, cabeçalho de cada dia, selos.
+- **Display** (750, clamp 31–40px, entrelinha 1.08, -.03em, `text-wrap: balance`): a frase do mês. A segunda linha (fim do mês) vem em tinta suave com o número em tinta; a linha do pior dia, quando negativo, vem toda em `negativo`.
+- **Stat** (800, clamp 20–25px, tabular): entra, sai, guarda abaixo da frase, com "mil"/"mi" a 62% e uma casa decimal fixa.
+- **Headline** (650, 34px): total das caixinhas.
+- **Title** (650, 20px): título dos painéis.
+- **Body** (400, 16px): texto corrido e campos (16px evita zoom no iOS).
+- **Apoio** (400, 15.5px, até 46ch): linha abaixo da frase.
+- **Item** (500, 15.5px): descrição do lançamento, uma linha com reticências.
+- **Valor** (650, 15px, tabular): valor do item; "a definir" em 13px tinta suave quando o valor é zero.
+- **Label** (600, 12.5px): rótulos dos stats, categoria e "fixa" sob o item, cabeçalho do gráfico.
 
 ### Named Rules
-**A Regra do Número em Mono.** Todo valor em reais que fica sozinho (lista, fita, saldo por item, eixos) vai em JetBrains Mono tabular. Dentro de uma frase corrida, o número fica em Manrope com `tabular-nums`.
-
-**A Regra do Rótulo Colado ao Dado.** O mono maiúsculo nomeia um dado, um gráfico ou um dia. Ele não sobe acima de títulos como chamada decorativa.
+**A Regra da Letra Única.** Só Manrope. Valores e datas com `tabular-nums`; nada de mono e nada de maiúsculas espaçadas como rótulo.
 
 ## Layout
 
-Coluna única centrada de até 560px, com margem lateral de 16px e folga inferior de 110px mais a área segura, para o botão + não cobrir o último item. A barra do topo é fixa, em grade de 44px por ícone, transparente no início e virando vidro com borda de 1px depois de rolar.
+Coluna única centrada de até 560px, margem lateral de 16px e folga inferior para o botão + (a coluna do extrato tem folga extra). Barra do topo fixa, ícones de 44px, transparente no início e vidro depois de rolar.
 
-A partir de 900px, o conteúdo vai a 1040px com margens de 32px e vira duas colunas: resumo de 360px (fixo a 72px do topo) e extrato no resto, com 40px de vão. Os painéis deixam de ser folhas de baixo e viram cartões flutuantes a 24px do fundo.
+A partir de 900px, conteúdo até 1040px em duas colunas: resumo de 360px fixo à esquerda (casal, frase, stats, hoje, avisos, barras, atalhos) e extrato à direita.
 
-O ritmo vertical da home é de 18–22px entre blocos (casal, frase, fita, barras, avisos), 8–14px dentro deles. Filtros e categorias rolam na horizontal, sangrando até a borda da tela. Os atalhos ("Para onde foi", "Caixinhas", "Como estamos") ficam em grade de 3 colunas com 8px de vão.
-
-O fundo do topo da home é uma camada de 620px de altura e largura total: grade de 44px em linhas de 1px mais um brilho radial ciano em 30% / 18%, apagado por máscara a partir de 35% da altura.
+Ordem da home: casal e última ação da outra pessoa; frase; stats; "Conferir com o banco"; Hoje (atrasadas recolhidas com valor, cabeçalho do dia, lista de hoje); até 2 avisos; barras do saldo; atalhos; filtros e o resto do mês. Ritmo de 16–22px entre blocos e 8–14px dentro. Atalhos em grade de 3 colunas com 8px de vão; a última linha incompleta estica.
 
 ## Elevation & Depth
 
-O sistema é chapado. A profundidade vem de borda de 1px (`linha`) e de tons entre fundo e superfície, não de sombra. No escuro, a sombra de base é só um contorno de 1px em branco a 6%. Sombras reais existem em três lugares com função: a folha de baixo para cima (separa o painel do conteúdo), o botão + (brilho da própria cor, herdado do botão principal do portfólio) e o segmento ativo dos seletores no tema claro.
+Chapado. A profundidade vem do fio de 1px e do tom entre fundo e superfície. Sombra só no que flutua: a folha de baixo para cima, o botão + e o segmento ativo dos seletores. Uma luz difusa por paleta no alto do app (`--luz1`, `--luz2`; o Ninho não tem).
 
 ### Shadow Vocabulary
-- **Contorno** (`box-shadow: 0 0 0 1px rgba(255,255,255,.06)` no escuro; `0 1px 2px rgba(13,24,35,.04), 0 10px 28px -16px rgba(13,24,35,.16)` no claro): segmento ativo de seletor.
-- **Folha** (`box-shadow: 0 -12px 48px rgba(0,0,0,.6)` no escuro; `0 -10px 40px rgba(13,24,35,.16)` no claro): painel de baixo para cima.
-- **Brilho do +** (`box-shadow: 0 10px 30px -8px var(--primaria), 0 2px 6px rgba(0,0,0,.18)`): só o botão de adicionar.
+- **Segmento** (`0 1px 2px rgba(60,45,20,.05), 0 10px 28px -16px rgba(60,45,20,.18)` no claro; contorno de 1px a 6% no escuro): segmento ativo de seletor.
+- **Folha** (`0 -10px 40px rgba(60,45,20,.16)` no claro; `0 -12px 48px rgba(0,0,0,.55)` no escuro): painel de baixo para cima.
+- **Botão +**: sombra na cor de ação da paleta (Rosa e Noite com tom próprio).
 
 ### Named Rules
-**A Regra do Fio.** Toda superfície em repouso se separa do fundo por 1px de `linha`. Sombra só quando algo flutua de verdade (painel, botão +).
-
-**A Regra do Brilho no Topo.** Grade e brilho ciano vivem só no fundo do topo da home e somem por máscara. Não se repetem em cartões nem em painéis.
+**A Regra do Fio.** Toda superfície em repouso se separa do fundo por 1px de `linha`. Sombra só quando algo flutua de verdade.
 
 ## Shapes
 
-Cantos suaves e consistentes. O raio base é 14px (listas, avisos, botões, cartão de barras, linhas de atalho). Campos usam 12px, chips de filtro 10px, selos 7px, etiquetas 6px. Os cartões de caixinha usam 16px, o botão + 18px (um quadrado arredondado, não círculo) e o painel 24px nos cantos de cima. Formas circulares ficam para o que é pessoa ou estado: iniciais, bola do check, bolinhas de status, botões de ícone do topo. Chips de categoria usam pílula (999px). As barras do saldo previsto têm no máximo 2px de raio.
+Raio base de 14px (listas, avisos, botões, cartão de barras, atalhos). Campos 12px, chips 10px, etiquetas 6px, caixinhas 16px, botão + 18px (quadrado arredondado), painel 24px nos cantos de cima. Círculos só para pessoa e estado: iniciais, check, bolinhas de selo, ícones do topo. Selos e chips de categoria em pílula.
 
 ## Components
 
 ### Buttons
-Diretos e firmes, sempre na largura toda dentro de painéis.
-- **Shape:** raio de 14px, altura mínima de 50px.
-- **Primary:** fundo ciano, texto `sobre-primaria`, peso 600.
-- **Hover / Focus / Active:** foco com contorno de 2px ciano a 2px de distância; ao tocar, escala .97 em .14s com a curva de saída (`cubic-bezier(.23, 1, .32, 1)`). Desativado a 55% de opacidade.
-- **Secondary:** transparente com borda de 1px `linha`, texto em tinta.
-- **Texto:** sem fundo, texto ciano, 44px de altura. A variante de perigo troca o ciano por vermelho.
-- **Botão +:** 60px, raio 18px, ciano com o brilho da própria cor, fixo no canto inferior direito da coluna; escala .92 ao tocar.
+- **Shape:** 14px, altura mínima de 50px.
+- **Primary:** fundo `acao`, texto `sobre-acao`, 600.
+- **Focus / Active:** contorno de 2px na cor de ação a 2px de distância; ao tocar, escala .97 em .14s com `cubic-bezier(.23, 1, .32, 1)`. Desativado a 55%.
+- **Secondary:** transparente com fio de 1px.
+- **Texto:** sem fundo, `acao-texto`, 44px de altura; a variante de perigo usa `negativo`.
+- **Botão +:** 60px, raio 18px, `acao` com sombra da própria cor, canto inferior direito; some ao rolar para baixo.
 
 ### Chips
-- **Style:** filtros com fundo de superfície, borda de 1px, raio 10px, 40px de altura, texto suave 600.
-- **State:** ativo ganha véu ciano, texto ciano e borda ciano. Chips de categoria nos painéis são pílulas sem fundo; ativos ganham véu ciano sem borda.
+- **Style:** filtros com fundo de superfície, fio de 1px, raio 10px, 44px, texto suave 600.
+- **State:** ativo com véu de ação, texto e borda de ação.
 
 ### Selo de status
-Pequena placa mono de 26px, raio 7px, borda de 1px, com bolinha de 7px à esquerda cercada por halo de 3px. Menta para "ao vivo", âmbar para "sem internet". Também marca o dia de hoje no cabeçalho do gráfico.
+Pílula de 26px com fio, bolinha de 7px com halo. "ao vivo" quando a outra pessoa está com o app aberto.
 
 ### Cards / Containers
 - **Corner Style:** 14px.
 - **Background:** `superficie` sobre `fundo`.
-- **Shadow Strategy:** nenhuma; ver A Regra do Fio.
+- **Shadow Strategy:** nenhuma em repouso.
 - **Border:** 1px `linha`.
-- **Internal Padding:** 14px (cartão de barras), itens de lista com 6px à esquerda para a área do check.
+- **Internal Padding:** 14px.
 
 ### Inputs / Fields
-- **Style:** fundo `campo`, borda de 1px `linha`, raio 12px, 13px × 14px de respiro, texto a 16px. Rótulo acima em 13px, tinta suave, peso 500.
-- **Focus:** borda vira ciano e ganha anel de 3px em véu ciano, em .15s.
-- **Error:** mensagem em vermelho a 14px abaixo do campo.
-- **Valor grande:** campo do valor no lançamento a 30px, peso 650.
+- **Style:** fundo `campo`, fio de 1px, raio 12px, 13 × 14px, texto 16px; rótulo acima em 13px tinta suave.
+- **Focus:** borda na cor de ação e anel de 3px no véu de ação, em .15s.
+- **Valor:** campo grande a 30px, com calculadora.
+- **"Já foi pago":** vem marcado só quando a data é hoje ou passada.
 
 ### Navigation
-Barra do topo fixa com seta de mês, título do mês (650, 16.5px), atalho "Hoje" em pílula de véu ciano e ícones de busca e ajustes em círculos de 44px. Os meses também trocam por gesto lateral. Transparente no topo, vidro desfocado com fio inferior depois de rolar.
+Topo fixo: seta de mês, título do mês (650, 16.5px), pílula "Hoje" fora do mês atual, busca e ajustes em 44px. Meses também trocam por gesto lateral.
 
 ### Item de lançamento
-Linha de 60px dentro de uma lista com fio entre itens: bola de check de 26px (borda `check-borda`; menta cheia quando pago; borda âmbar quando atrasado; pulso de .32s ao marcar), ícone de categoria em quadrado de 34px com raio 11px, descrição em até 2 linhas, etiquetas pequenas (parcela, fixa, guardar, atrasado, autor com bolinha da pessoa) e, à direita, valor em mono com sinal (+ em menta para entrada). Itens pagos de dias passados ficam riscados e em tinta suave, a pedido do usuário.
+Linha de 60px com fio entre itens. À esquerda, o círculo do check de 26px (borda `check-borda`; cheio em `acao` quando pago) com o avatar de quem lançou (foto ou inicial, 18px) no canto. Descrição em uma linha; abaixo, em texto pequeno, categoria e "fixa"/parcela, e etiquetas só para o que é de outro tipo (guardar, aguardando internet). À direita, o valor com sinal (+ em `verde` para entrada) ou "a definir", e o "depois R$ X" no último item sem check de cada dia. Itens pagos de dias passados ficam riscados e em tinta suave, a pedido do usuário.
 
-### Fita do mês
-Trilho de 10px com raio 5px mostrando o que entra como comprimento total: gastos em tinta suave, guardado em menta, e o que passou do que entra em vermelho na ponta direita. Abaixo, três rótulos mono maiúsculos com o valor em mono de 14px.
+### Cabeçalho do dia
+Número do dia grande e dia da semana ao lado; Hoje em `acao-texto` com o link "Check em tudo de hoje".
 
-### Barras do saldo previsto (assinatura)
-Cartão com uma coluna fina por dia do mês (86px de altura). Positivas em ciano, negativas em vermelho abaixo da linha do zero. Dias passados a 32% de opacidade, futuros a 70%, hoje aceso a 100% com um ponto ciano de 3px acima. Eixo de datas em mono de 10.5px e uma frase embaixo dizendo o ponto mais baixo com o valor.
+### Atrasadas
+Linha recolhida neutra "N atrasadas · ver" com "R$ X a pagar e R$ Y a receber, desde mês/aa" embaixo. Aberta, agrupa por dia com o mês.
+
+### Barras do saldo dia a dia (assinatura)
+Cartão com uma coluna fina por dia (86px). Positivas na cor de ação, negativas em `negativo` abaixo de uma linha tracejada do zero. Passado esmaecido, hoje aceso com o ovo âmbar acima. Tocar mostra o saldo do dia. A explicação "Cada barra é…" some depois do primeiro toque.
 
 ### Avisos
-Botões de linha inteira com ícone, frase e seta. Neutro: superfície com fio. Crítico: fundo vermelho translúcido, texto `aviso-ruim-texto`, sem borda. Atenção: o mesmo em âmbar. Informativo: neutro com ícone ciano. Escala .98 ao tocar.
+Linha inteira com ícone, frase e seta; no máximo 2 visíveis e "Mais N avisos". O de negativo diz os trechos de dias seguidos e o mesmo pior dia da frase.
 
 ### Painéis
-Folhas de baixo para cima até 92% da altura, raio 24px em cima, alça de 40px × 5px, entrada em .32s com a curva de saída e arrasto para fechar. Fundo escurecido atrás.
+Folhas de baixo para cima até 92% da altura, raio 24px em cima, alça, entrada em .32s e arrasto para fechar.
 
-### Insight da visão do ano
-Bloco com faixa de 3px à esquerda na cor do estado (menta, âmbar, vermelho ou ciano), fundo `fundo`, raio 4px à esquerda e 14px à direita. Primeira frase em tinta, segunda em tinta suave.
+### Insight da Visão do ano
+Bloco com faixa de 3px à esquerda no tom (bom em verde, atenção em âmbar, ruim em vermelho só para o que é negativo de fato; sem tom quando é convite).
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** abrir cada tela com uma frase que diz o número, em Manrope 800 (clamp 31–40px), com o número-chave em ciano.
-- **Do** separar superfícies com 1px de `linha` e raio de 14px.
-- **Do** escrever valores soltos em JetBrains Mono tabular, e rótulos de dados em mono maiúsculo de 10.5–11.5px com .06–.08em.
-- **Do** definir toda cor nova como token nos três blocos (`:root`, escuro por preferência do sistema e `[data-theme="dark"]`) e testar os dois temas.
-- **Do** manter alvos de toque com 44px ou mais e campos com texto a 16px.
-- **Do** usar a curva de saída `cubic-bezier(.23, 1, .32, 1)` entre .14s e .32s e respeitar `prefers-reduced-motion`.
+- **Do** abrir cada tela com uma frase que diz o número, em Manrope 750 (clamp 31–40px), com o número em `acao-texto`.
+- **Do** usar só os papéis comuns (`--fundo`, `--acao`, `--acao-texto`, `--guardado`, `--guardado-texto`, `--negativo`) ao pintar algo novo, para valer nas três paletas.
+- **Do** definir cor nova nos blocos de claro, escuro por preferência, `[data-theme="dark"]` e nas paletas Rosa e Noite, e testar as cinco combinações.
+- **Do** manter alvos de toque de 44px ou mais e campos com texto a 16px.
+- **Do** usar a curva `cubic-bezier(.23, 1, .32, 1)` entre .14s e .32s e respeitar `prefers-reduced-motion`.
 - **Do** manter o riscado nos itens pagos de dias passados.
+- **Do** dizer o negativo uma vez na frase e uma vez no aviso, no mesmo pior dia.
 
 ### Don't:
-- **Don't** usar o ciano como fundo de seção ou de cartão inteiro; ele marca número e ação.
-- **Don't** usar vermelho ou âmbar em estado normal; cor de estado só quando há algo a fazer.
-- **Don't** pintar blocos ou gráficos com as cores das pessoas; elas ficam em pontos pequenos.
-- **Don't** repetir a grade e o brilho fora do topo da home.
-- **Don't** pôr sombra em cartão em repouso; sombra só no painel e no botão +.
-- **Don't** usar o rótulo mono maiúsculo como chamada decorativa acima de títulos.
-- **Don't** trocar as fontes auto-hospedadas por fontes de CDN.
+- **Don't** usar âmbar fora do guardado e do hoje, nem em zero guardado.
+- **Don't** usar vermelho para atraso, limite ou meta; vermelho é negativo.
+- **Don't** pintar blocos ou gráficos com as cores das pessoas.
+- **Don't** voltar ao mundo antigo do portfólio: ciano neon, grade, brilho no topo, JetBrains Mono, rótulos em maiúsculas espaçadas.
+- **Don't** pôr sombra em cartão em repouso.
+- **Don't** usar cor da marca no `background_color` do manifesto (pinta a barra de navegação do Android); manter #faf6ee.
+- **Don't** trocar a fonte auto-hospedada por CDN.
