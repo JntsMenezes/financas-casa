@@ -1,5 +1,5 @@
 // Guarda a casca do app para abrir rápido e sem internet. Os dados vêm sempre do Supabase.
-const CACHE = "financas-v53";
+const CACHE = "financas-v54";
 const CASCA = [
   "./", "index.html", "app.js", "config.js", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/favicon.svg", "icons/favicon-32.png", "icons/badge-96.png",
@@ -28,6 +28,13 @@ self.addEventListener("fetch", (e) => {
       .then((r) => { const copia = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copia)); return r; })
       .catch(() => caches.match(e.request, { ignoreSearch: true }))
   );
+});
+
+// O navegador trocou a inscrição: pede uma nova na hora. O banco é atualizado na próxima
+// vez que o app abrir (garantirInscricao), porque aqui não há login.
+self.addEventListener("pushsubscriptionchange", (e) => {
+  const opcoes = e.oldSubscription?.options;
+  if (opcoes) e.waitUntil(self.registration.pushManager.subscribe(opcoes).catch(() => {}));
 });
 
 // Lembretes de contas enviados pela função "lembretes" do Supabase.

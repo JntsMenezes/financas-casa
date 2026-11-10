@@ -322,6 +322,7 @@ async function abrirCasa() {
   manterSeries();
   verAdmin();
   sb.rpc("marcar_visto").then(() => {}, () => {});
+  garantirInscricao();
 }
 
 async function verAdmin() {
@@ -3307,6 +3308,27 @@ function chaveVapid(b64) {
   return Uint8Array.from(bin, (c) => c.charCodeAt(0));
 }
 
+// O Chrome troca o endereço de notificação de tempos em tempos (e ao reinstalar o app).
+// A inscrição antiga some do banco e os lembretes param sem aviso. A cada abertura, o app
+// confere: se o celular tem permissão e queria lembretes, garante a inscrição atual no banco.
+const lerFlag = (k) => { try { return localStorage.getItem(k) === "1"; } catch (e) { return false; } };
+const gravarFlag = (k, v) => { try { v ? localStorage.setItem(k, "1") : localStorage.removeItem(k); } catch (e) {} };
+async function garantirInscricao() {
+  try {
+    if (!suportaPush || !estado.casa || Notification.permission !== "granted") return;
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub && !lerFlag("lembretes")) return; // desligou de propósito (desligar tira a inscrição do celular)
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chaveVapid(cfg.vapidPublica) });
+    const j = sub.toJSON();
+    const { data: ja } = await sb.from("push_inscricoes").select("resumo").eq("endpoint", j.endpoint);
+    if (ja?.length) { gravarFlag("lembretes", true); gravarFlag("resumo", ja[0].resumo); return; }
+    const { error } = await sb.from("push_inscricoes").upsert({ endpoint: j.endpoint, casa_id: estado.casa.id, p256dh: j.keys.p256dh, auth: j.keys.auth, resumo: lerFlag("resumo") });
+    if (error) { console.error("reinscrição de lembretes", error); return; }
+    gravarFlag("lembretes", true);
+  } catch (e) { console.error("reinscrição de lembretes", e); }
+}
+
 async function mostrarLembretes() {
   const bloco = $("bloco-lembretes"), chave = $("lembretes-ligar"), txt = $("lembretes-txt");
   if (!suportaPush && !(ehIphone && !instalado)) { bloco.hidden = true; return; }
@@ -3348,6 +3370,7 @@ $("lembretes-ligar").addEventListener("change", async (e) => {
       const { error } = await sb.from("push_inscricoes").upsert({ endpoint: j.endpoint, casa_id: estado.casa.id, p256dh: j.keys.p256dh, auth: j.keys.auth });
       if (error) await sub.unsubscribe().catch(() => {});
       if (error) throw (/push_inscricoes/.test(error.message) ? new Error("Falta atualizar o banco (05_lembretes.sql).") : error);
+      gravarFlag("lembretes", true);
       avisar("Lembretes ligados neste celular.");
     } else {
       const sub = await reg.pushManager.getSubscription();
@@ -3356,6 +3379,7 @@ $("lembretes-ligar").addEventListener("change", async (e) => {
         if (r.error) throw new Error("Não consegui desligar no servidor: " + msgErro(r.error));
         await sub.unsubscribe();
       }
+      gravarFlag("lembretes", false);
       avisar("Lembretes desligados neste celular.");
     }
   } catch (err) {
@@ -3375,6 +3399,7 @@ $("resumo-ligar").addEventListener("change", async (e) => {
     const { data, error } = await sb.from("push_inscricoes").update({ resumo: chave.checked }).eq("endpoint", sub.endpoint).select("endpoint");
     if (error) throw error;
     if (!data.length) throw new Error("Este celular não está inscrito. Desligue e ligue os lembretes de novo.");
+    gravarFlag("resumo", chave.checked);
     $("resumo-estado").textContent = chave.checked ? "Ligado" : "Desligado";
     avisar(chave.checked ? "Resumo da semana ligado neste celular." : "Resumo da semana desligado neste celular.");
   } catch (err) {
