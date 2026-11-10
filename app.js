@@ -3229,9 +3229,23 @@ function aplicarTema(t) {
   else delete document.documentElement.dataset.theme;
   try { if (t === "auto") localStorage.removeItem("tema"); else localStorage.setItem("tema", t); } catch (e) {}
   for (const b of $("seg-tema").children) b.classList.toggle("ativo", b.dataset.tema === t);
-  const escuro = t === "dark" || (t === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
-  document.querySelector('meta[name="theme-color"]').content = escuro ? "#0e1917" : "#faf6ee";
+  // A Noite é só escura: o Tema fica desligado enquanto ela estiver escolhida.
+  for (const b of $("seg-tema").children) b.disabled = paletaAtual() === "noite";
+  for (const b of $("seg-paleta").children) b.classList.toggle("ativo", b.dataset.paleta === paletaAtual());
+  // theme-color segue o fundo real da paleta e do modo.
+  const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
+  if (bg) document.querySelector('meta[name="theme-color"]').content = bg;
 }
+function paletaAtual() {
+  try { return localStorage.getItem("paleta") || "ninho"; } catch (e) { return "ninho"; }
+}
+function aplicarPaleta(p) {
+  if (p === "ninho") delete document.documentElement.dataset.paleta;
+  else document.documentElement.dataset.paleta = p;
+  try { if (p === "ninho") localStorage.removeItem("paleta"); else localStorage.setItem("paleta", p); } catch (e) {}
+  aplicarTema(temaAtual());
+}
+$("seg-paleta").onclick = (e) => { const b = e.target.closest("[data-paleta]"); if (b) aplicarPaleta(b.dataset.paleta); };
 $("seg-tema").onclick = (e) => { const b = e.target.closest("[data-tema]"); if (b) aplicarTema(b.dataset.tema); };
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => aplicarTema(temaAtual()));
 aplicarTema(temaAtual());
