@@ -415,6 +415,22 @@ function aplicarCoresPessoas() {
   const cores = dela && CORES_PALETA[dela] ? [["--q1", minha], ["--q2", dela]] : [];
   for (const v of ["--q1", "--q2"]) raiz.style.removeProperty(v);
   for (const [v, p] of cores) raiz.style.setProperty(v, CORES_PALETA[p][escuro ? 1 : 0]);
+  // A inicial vai em tinta escura ou clara, a que der mais contraste com a cor de cada pessoa.
+  const est = getComputedStyle(raiz);
+  for (const v of ["--q1", "--q2"]) raiz.style.setProperty(v + "-tx", textoSobre(est.getPropertyValue(v).trim()));
+}
+
+// Luminância pelo canvas (aceita hex, rgb e oklch); devolve a tinta que dá mais contraste.
+let ctxCor = null;
+function textoSobre(cor) {
+  try {
+    ctxCor ||= Object.assign(document.createElement("canvas"), { width: 1, height: 1 }).getContext("2d", { willReadFrequently: true });
+    ctxCor.clearRect(0, 0, 1, 1); ctxCor.fillStyle = "#000"; ctxCor.fillStyle = cor; ctxCor.fillRect(0, 0, 1, 1);
+    const [r, g, b] = ctxCor.getImageData(0, 0, 1, 1).data;
+    const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+    const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    return (L + 0.05) / 0.0625 >= 1.05 / (L + 0.05) ? "#14201d" : "#ffffff";
+  } catch { return "#ffffff"; }
 }
 
 function nomeDe(uid) {
@@ -770,7 +786,7 @@ function barrasDiaHtml(pts, hj, m) {
     </div>
     <div class="eixo">${marcas}</div>
     <p class="barras-frase">${frase}</p>
-    <p class="nota-barras">Cada barra é o saldo do dia contando também o que ainda não tem check. Toque numa barra para ver o valor.</p>
+    ${leuBarras() ? "" : `<p class="nota-barras">Cada barra é o saldo do dia contando também o que ainda não tem check. Toque numa barra para ver o valor.</p>`}
     ${menor.saldo < 0 ? `<p>Abaixo da linha vermelha o saldo fica negativo. O ponto mais baixo é <b class="num">${brl.format(menor.saldo)}</b> em ${dataCurta(menor.data)}.</p>`
       : frente.length && !/apertado/.test(m.apoio || "") ? `<p>O ponto mais baixo daqui para frente é <b class="num" style="color:var(--ink)">${brl.format(menorFrente.saldo)}</b> em ${dataCurta(menorFrente.data)}.</p>` : ""}
   </figure>`;
@@ -778,6 +794,8 @@ function barrasDiaHtml(pts, hj, m) {
 
 // Tocar numa barra mostra o saldo daquele dia.
 let barrasDados = null;
+// A explicação das barras some depois que a pessoa tocou numa barra pela primeira vez.
+const leuBarras = () => { try { return localStorage.getItem("leu-barras") === "1"; } catch { return false; } };
 function dicaBarras(ev) {
   const area = ev.target.closest("[data-barras]");
   if (!area || !barrasDados) return;
@@ -788,6 +806,7 @@ function dicaBarras(ev) {
   const p = pts[i], dica = area.querySelector(".dica");
   dica.innerHTML = `<b>${dataCurta(p.data)}</b><span>saldo <b class="num">${brl.format(p.saldo)}</b></span>`;
   dica.hidden = false;
+  if (!leuBarras()) { try { localStorage.setItem("leu-barras", "1"); } catch {} }
   dica.style.left = `${Math.min(Math.max(((i + 0.5) / n) * 100, 18), 82)}%`;
 }
 function tirarDica(ev) {
@@ -834,7 +853,11 @@ function hojeHtml(hj) {
 function atrasadosHtml(lista, hj) {
   const n = lista.length, aberto = estado.verAtrasados;
   const relogio = svg('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>');
-  return `<button class="recolhido atrasos ${aberto ? "aberto" : ""}" id="atrasados" type="button" data-alternar-atrasados aria-expanded="${aberto}">${relogio}<span class="num">${n === 1 ? "1 atrasada" : `${n} atrasadas`} · ${aberto ? "esconder" : "ver"}</span>${IC.baixo}</button>${aberto ? diasHtml(lista, hj, false, { semEstado: true, semId: true, comMes: true }) : ""}`;
+  const soma = (t) => lista.filter((l) => l.tipo === t).reduce((s, l) => s + Number(l.valor), 0);
+  const pagar = soma("despesa"), receber = soma("receita");
+  const valores = [pagar && `${curto(pagar)} a pagar`, receber && `${curto(receber)} a receber`].filter(Boolean).join(" e ");
+  const desde = lista[0].data.slice(0, 7) < hj.slice(0, 7) ? `, desde ${MESES[Number(lista[0].data.slice(5, 7)) - 1]}/${lista[0].data.slice(2, 4)}` : "";
+  return `<button class="recolhido atrasos ${aberto ? "aberto" : ""}" id="atrasados" type="button" data-alternar-atrasados aria-expanded="${aberto}">${relogio}<span class="num">${n === 1 ? "1 atrasada" : `${n} atrasadas`} · ${aberto ? "esconder" : "ver"}${valores ? `<small>${valores}${desde}</small>` : ""}</span>${IC.baixo}</button>${aberto ? diasHtml(lista, hj, false, { semEstado: true, semId: true, comMes: true }) : ""}`;
 }
 
 // A última coisa que a outra pessoa fez (dar check conta), para responder "ele pagou a luz?".
