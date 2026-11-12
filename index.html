@@ -17,9 +17,11 @@
     const p = localStorage.getItem("paleta");
     if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
     if (p === "rosa" || p === "noite") document.documentElement.dataset.paleta = p;
+    const a = localStorage.getItem("acao");
+    if (a === "azul" || a === "verde") document.documentElement.dataset.acao = a;
     else if (p) localStorage.removeItem("paleta"); // paleta que saiu do app volta para o Ninho
     const escuro = t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
-    const fundos = { ninho: ["#faf6ee", "#0e1917"], rosa: ["#edbec6", "#1e1619"], noite: ["#0b1430", "#0b1430"] };
+    const fundos = { ninho: ["#faf6ee", "#0e1917"], rosa: ["#edbec6", "#1e1619"], noite: ["#000000", "#000000"] };
     document.querySelector('meta[name="theme-color"]').content = (fundos[p] || fundos.ninho)[escuro ? 1 : 0];
   } catch (e) {}
 </script>
@@ -132,24 +134,36 @@
     --ovo-forte: #f0b24d; --ovo-bg: rgba(240,178,77,.14);
     --campo: #191215; --vidro: rgba(30,22,25,.82); --toast-acao: #2e3033; --topo: #261c20; --tag-bg: var(--fundo);
   }
-  /* Noite: só escura, vale com qualquer opção de Tema. Azul-tinta no fundo, azul na ação, âmbar no guardado.
+  /* Preto (chave interna "noite"): só escura, vale com qualquer opção de Tema. Fundo preto puro, cards #111,
+     ação branca, laranja só no guardado. A cor dos botões pode virar azul ou verde (html[data-acao]).
      O --negativo é o mesmo salmão do escuro das outras paletas. */
   html:root[data-paleta="noite"] {
-    --fundo: #0b1430; --card: #142049; --ink: #eef1f8; --muted: #a3abc4; --line: rgba(230,236,255,.09);
-    --acao: #3d6bff; --sobre-acao: #ffffff; --acao-texto: #8eaaff; --guardado: #ffa53d; --guardado-texto: #ffa53d; --negativo: #f08a7e;
+    --fundo: #000000; --card: #111111; --ink: #f5f5f5; --muted: #8a8a8a; --line: rgba(255,255,255,.08);
+    --acao: #ffffff; --sobre-acao: #000000; --acao-texto: #ffffff; --guardado: #ffa53d; --guardado-texto: #ffa53d; --negativo: #f08a7e;
     --verde: #5fd4a8; --verde-bg: rgba(95,212,168,.11); --vermelho-bg: rgba(240,138,126,.11);
     --ambar: #ffb066; --ambar-bg: rgba(255,176,102,.11);
-    --primaria: #3d6bff; --primaria-bg: rgba(61,107,255,.18); --sobre-primaria: #ffffff;
+    --primaria: #ffffff; --primaria-bg: rgba(255,255,255,.14); --sobre-primaria: #000000;
     --ovo-forte: #ffa53d; --ovo-bg: rgba(255,165,61,.14);
-    --campo: #0a1128; --check-borda: rgba(230,236,255,.42); --aviso-ruim: #ffb3a8; --aviso-atencao: #ffd08a;
-    --vidro: rgba(11,20,48,.82); --toast-acao: #ffa53d; --topo: #0f1a3c; --tag-bg: var(--fundo);
-    --q1: oklch(.78 .1 265); --q2: oklch(.8 .11 345); --l-ent: var(--verde);
-    --sombra: 0 0 0 1px rgba(230,236,255,.06); --sombra-alta: 0 -12px 48px rgba(0,0,0,.6);
+    --campo: #0a0a0a; --check-borda: rgba(255,255,255,.42); --aviso-ruim: #ffb3a8; --aviso-atencao: #ffd08a;
+    --vidro: rgba(0,0,0,.82); --toast-acao: #ffa53d; --topo: #000000; --tag-bg: var(--fundo);
+    --q1: #ffffff; --q2: #9a9a9a; --l-ent: var(--verde);
+    --sombra: 0 0 0 1px rgba(255,255,255,.07); --sombra-alta: 0 -12px 48px rgba(0,0,0,.6);
     color-scheme: dark;
+  }
+  /* Azul: o #0063ff some como texto no preto (4:1), então links e números usam #5c9bff. */
+  html:root[data-paleta="noite"][data-acao="azul"] {
+    --acao: #0063ff; --sobre-acao: #ffffff; --acao-texto: #5c9bff;
+    --primaria: #0063ff; --primaria-bg: rgba(0,99,255,.2); --sobre-primaria: #ffffff;
+  }
+  html:root[data-paleta="noite"][data-acao="verde"] {
+    --acao: #27e0ac; --sobre-acao: #000000; --acao-texto: #27e0ac;
+    --primaria: #27e0ac; --primaria-bg: rgba(39,224,172,.16); --sobre-primaria: #000000;
   }
   /* O + usa a cor de ação da paleta; a sombra acompanha. */
   :root[data-paleta="rosa"] .fab { box-shadow: 0 10px 24px -10px rgba(12,117,83,.5), 0 2px 6px rgba(0,0,0,.12); }
-  :root[data-paleta="noite"] .fab { box-shadow: 0 10px 28px -8px rgba(61,107,255,.55); }
+  :root[data-paleta="noite"] .fab { box-shadow: 0 0 0 1px rgba(255,255,255,.1), 0 10px 28px -8px rgba(0,0,0,.8); }
+  :root[data-paleta="noite"][data-acao="azul"] .fab { box-shadow: 0 10px 28px -8px rgba(0,99,255,.55); }
+  :root[data-paleta="noite"][data-acao="verde"] .fab { box-shadow: 0 10px 28px -8px rgba(39,224,172,.4); }
   .seg.tres { grid-template-columns: repeat(3, 1fr); }
   .seg button[data-paleta] { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px 2px; font-size: 13px; min-height: 52px; }
   .seg button.ativo[data-paleta] { background: var(--card); color: var(--ink); box-shadow: var(--sombra); }
@@ -565,6 +579,11 @@
   .seg.tres { grid-template-columns: repeat(3, 1fr); }
   .seg button.ativo[data-escopo] { background: var(--card); color: var(--ink); box-shadow: var(--sombra); }
   .seg button.ativo[data-tema] { background: var(--card); color: var(--ink); box-shadow: var(--sombra); }
+  .seg button.ativo[data-acao] { background: var(--card); color: var(--ink); box-shadow: var(--sombra); }
+  .seg button[data-acao]::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; vertical-align: -1px; box-shadow: 0 0 0 1px rgba(255,255,255,.2); }
+  .seg button[data-acao="branco"]::before { background: #ffffff; }
+  .seg button[data-acao="azul"]::before { background: #0063ff; }
+  .seg button[data-acao="verde"]::before { background: #27e0ac; }
   .seg button.ativo[data-per] { background: var(--card); color: var(--ink); box-shadow: var(--sombra); }
   .valor-grande input { font-size: 30px; font-weight: 650; letter-spacing: -.02em; padding: 8px 16px; }
   .duas { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -1089,10 +1108,18 @@
   <div class="seg tres" id="seg-paleta">
     <button type="button" data-paleta="ninho"><span class="amostra"><i style="background:#faf6ee"></i><i style="background:#123f3b"></i><i style="background:#e3a33b"></i></span>Ninho</button>
     <button type="button" data-paleta="rosa"><span class="amostra"><i style="background:#edbec6"></i><i style="background:#2e3033"></i><i style="background:#22e3a2"></i></span>Rosa</button>
-    <button type="button" data-paleta="noite"><span class="amostra"><i style="background:#0b1430"></i><i style="background:#3d6bff"></i><i style="background:#ffa53d"></i></span>Noite</button>
+    <button type="button" data-paleta="noite"><span class="amostra"><i style="background:#000000"></i><i style="background:#ffffff"></i><i style="background:#ffa53d"></i></span>Preto</button>
+  </div>
+  <div id="bloco-acao" hidden>
+    <div class="campo"><span>Cor dos botões</span></div>
+    <div class="seg tres" id="seg-acao">
+      <button type="button" data-acao="branco">Branco</button>
+      <button type="button" data-acao="azul">Azul</button>
+      <button type="button" data-acao="verde">Verde</button>
+    </div>
   </div>
   <div class="campo"><span>Tema</span></div>
-  <p class="nota" id="tema-noite" hidden>A Noite é só escura. Para usar o tema claro, escolha Ninho ou Rosa.</p>
+  <p class="nota" id="tema-noite" hidden>O Preto é só escuro. Para usar o tema claro, escolha Ninho ou Rosa.</p>
   <div class="seg tres" id="seg-tema">
     <button type="button" data-tema="auto">Automático</button>
     <button type="button" data-tema="light">Claro</button>

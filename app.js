@@ -402,10 +402,10 @@ function sincronizarPaleta() {
   sb.rpc("definir_minha_paleta", { p_paleta: m.paleta }).then(({ error }) => { if (error) console.error("paleta", error); });
 }
 
-// Cada pessoa na cor da paleta que escolheu: Ninho verde, Rosa rosa, Noite azul (tom claro no modo escuro).
+// Cada pessoa na cor da paleta que escolheu: Ninho verde, Rosa rosa, Preto branco (tom claro no modo escuro).
 // --q1 é sempre quem está com o celular; --q2, a outra pessoa. Se as duas usam a mesma paleta, a outra
 // ganha a cor vizinha para não confundir. Sem a paleta da outra pessoa no banco, ficam as cores antigas.
-const CORES_PALETA = { ninho: ["#1c6b5d", "#9fd3bf"], rosa: ["#c2547a", "#f0a6b8"], noite: ["#3d6bff", "#8eaaff"] };
+const CORES_PALETA = { ninho: ["#1c6b5d", "#9fd3bf"], rosa: ["#c2547a", "#f0a6b8"], noite: ["#1f1f1f", "#ffffff"] };
 const VIZINHA = { ninho: "noite", rosa: "ninho", noite: "rosa" };
 function aplicarCoresPessoas() {
   const raiz = document.documentElement, eu = estado.sessao?.user?.id, minha = paletaAtual();
@@ -3328,10 +3328,14 @@ function aplicarTema(t) {
   else delete document.documentElement.dataset.theme;
   try { if (t === "auto") localStorage.removeItem("tema"); else localStorage.setItem("tema", t); } catch (e) {}
   for (const b of $("seg-tema").children) b.classList.toggle("ativo", b.dataset.tema === t);
-  // A Noite é só escura: o Tema fica desligado enquanto ela estiver escolhida.
+  // O Preto é só escuro: o Tema fica desligado enquanto ele estiver escolhido, e aparece a cor dos botões.
   const soEscura = paletaAtual() === "noite";
   $("seg-tema").hidden = soEscura;
   $("tema-noite").hidden = !soEscura;
+  $("bloco-acao").hidden = !soEscura;
+  const acao = acaoAtual();
+  for (const b of $("seg-acao").children) b.classList.toggle("ativo", b.dataset.acao === acao);
+  document.querySelector('#seg-paleta [data-paleta="noite"] .amostra i:nth-child(2)').style.background = CORES_ACAO[acao];
   for (const b of $("seg-paleta").children) b.classList.toggle("ativo", b.dataset.paleta === paletaAtual());
   const ativo = [...$("seg-paleta").children].find((b) => b.dataset.paleta === paletaAtual());
   if (ativo) $("assinatura").innerHTML = [...ativo.querySelectorAll(".amostra i")].map((i) => `<i style="${i.getAttribute("style")}"></i>`).join("") + `<span>Edição ${ativo.textContent.trim()}</span>`;
@@ -3343,6 +3347,17 @@ function aplicarTema(t) {
 function paletaAtual() {
   try { const p = localStorage.getItem("paleta"); return p === "rosa" || p === "noite" ? p : "ninho"; } catch (e) { return "ninho"; }
 }
+// Cor dos botões do Preto, só neste celular.
+const CORES_ACAO = { branco: "#ffffff", azul: "#0063ff", verde: "#27e0ac" };
+function acaoAtual() {
+  try { const a = localStorage.getItem("acao"); return a === "azul" || a === "verde" ? a : "branco"; } catch (e) { return "branco"; }
+}
+function aplicarAcao(a) {
+  if (a === "branco") delete document.documentElement.dataset.acao;
+  else document.documentElement.dataset.acao = a;
+  try { if (a === "branco") localStorage.removeItem("acao"); else localStorage.setItem("acao", a); } catch (e) {}
+  aplicarTema(temaAtual());
+}
 function aplicarPaleta(p) {
   if (p === "ninho") delete document.documentElement.dataset.paleta;
   else document.documentElement.dataset.paleta = p;
@@ -3351,6 +3366,7 @@ function aplicarPaleta(p) {
   sincronizarPaleta();
 }
 $("seg-paleta").onclick = (e) => { const b = e.target.closest("[data-paleta]"); if (b) aplicarPaleta(b.dataset.paleta); };
+$("seg-acao").onclick = (e) => { const b = e.target.closest("[data-acao]"); if (b) aplicarAcao(b.dataset.acao); };
 $("seg-tema").onclick = (e) => { const b = e.target.closest("[data-tema]"); if (b) aplicarTema(b.dataset.tema); };
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => aplicarTema(temaAtual()));
 aplicarTema(temaAtual());
