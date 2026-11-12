@@ -1008,15 +1008,15 @@ function render() {
   }
   if (negs.length) {
     pior = negs.reduce((a, p) => (p.saldo < a.saldo ? p : a), negs[0]);
-    if (pior.data !== fim) meio = `<span class="l2 meio">Dia ${nDia(pior.data)}, ${nBrl(pior.saldo, "meio")}.</span>`;
+    if (pior.data !== fim) meio = `<span class="l2 meio">Dia ${nDia(pior.data)}, ${nBrl(pior.saldo, "meio")}</span>`;
   }
   if (mes === mesAtual) {
-    titulo = `Hoje, ${nBrl(naConta, "hoje")}.${meio}<span class="l2">Dia ${dia}, ${nBrl(fimMes, "fim")}.</span>`;
+    titulo = `Hoje, ${nBrl(naConta, "hoje")} ${meio}<span class="l2">Dia ${dia}, ${nBrl(fimMes, "fim")}</span>`;
     if (!negs.length) apoio = doMes.length ? aperto(pts, hj, entradas).trim() : `Nada lançado em ${nomeDoMes(mes)} ainda.`;
   } else {
     titulo = mes > mesAtual
-      ? `Hoje, ${nBrl(naConta, "hoje")}.${meio}<span class="l2">Dia ${dia}, ${nBrl(fimMes, "fim")}.</span>`
-      : `${nomeDoMes(mes).charAt(0).toUpperCase() + nomeDoMes(mes).slice(1)} fechou com ${nBrl(fimMes, "fim")}.`;
+      ? `Hoje, ${nBrl(naConta, "hoje")} ${meio}<span class="l2">Dia ${dia}, ${nBrl(fimMes, "fim")}</span>`
+      : `${nomeDoMes(mes).charAt(0).toUpperCase() + nomeDoMes(mes).slice(1)} fechou com ${nBrl(fimMes, "fim")}`;
     const inicio = saldoAte(somarDias(mes + "-01", -1));
     apoio = (mes > mesAtual ? `${nomeDoMes(mes).charAt(0).toUpperCase() + nomeDoMes(mes).slice(1)} começa com <b class="num">${brl.format(inicio)}</b> que sobram de ${nomeDoMes(somarMeses(mes + "-01", -1))}. ` : "") +
       `${mes > mesAtual ? "Entram" : "Entraram"} <b class="num">${brl.format(entradas)}</b> e ${mes > mesAtual ? "saem" : "saíram"} <b class="num">${brl.format(saidas)}</b>` +

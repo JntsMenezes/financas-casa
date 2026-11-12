@@ -73,7 +73,6 @@
     --sombra: 0 1px 2px rgba(60, 45, 20, .05), 0 10px 28px -16px rgba(60, 45, 20, .18);
     --sombra-alta: 0 -10px 40px rgba(60, 45, 20, .16);
     --raio: 14px;
-    --luz1: transparent; --luz2: transparent; --luz-tam: 60% 70%;
     --cat-bg-l: .935; --cat-bg-c: .04; --cat-fg-l: .46; --cat-fg-c: .11;
     --mono: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --sai: cubic-bezier(.23, 1, .32, 1);
@@ -159,14 +158,6 @@
   .amostra i { display: block; height: 100%; }
   .amostra i:nth-child(1) { flex: 6; } .amostra i:nth-child(2) { flex: 3; } .amostra i:nth-child(3) { flex: 1; }
 
-  /* Luz difusa no alto por paleta; o Ninho fica sem. Na Noite, bem fraca e pequena. */
-  :root[data-paleta="rosa"] { --luz1: rgba(255,255,255,.4); --luz2: rgba(255,255,255,.3); }
-  html:root[data-paleta="noite"] { --luz1: rgba(61,107,255,.10); --luz2: transparent; --luz-tam: 40% 42%; }
-  @media (prefers-color-scheme: dark) {
-    :root[data-paleta="rosa"]:not([data-theme="light"]) { --luz1: rgba(34,227,162,.12); --luz2: rgba(150,70,100,.10); }
-  }
-  :root[data-paleta="rosa"][data-theme="dark"] { --luz1: rgba(34,227,162,.12); --luz2: rgba(150,70,100,.10); }
-
   /* (2) Cada categoria com o seu tom (mesmo matiz em todas as paletas). */
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --cat-bg-l: .32; --cat-bg-c: .05; --cat-fg-l: .84; --cat-fg-c: .09; } }
   :root[data-theme="dark"], html:root[data-paleta="noite"] { --cat-bg-l: .32; --cat-bg-c: .05; --cat-fg-l: .84; --cat-fg-c: .09; }
@@ -181,8 +172,8 @@
   .stats { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); max-width: 420px; margin: 16px 0 2px; }
   .stat { display: flex; flex-direction: column; gap: 2px; padding: 0 12px; border-left: 1px solid var(--line); min-width: 0; }
   .stat:first-child { padding-left: 0; border-left: 0; }
-  .stat b { font-size: clamp(20px, 6vw, 25px); font-weight: 800; letter-spacing: -.02em; line-height: 1.1; color: var(--ink); white-space: nowrap; }
-  .stat b small { font-size: .62em; font-weight: 700; color: var(--muted); letter-spacing: 0; }
+  .stat b { font-size: clamp(20px, 6vw, 25px); font-weight: 600; letter-spacing: -.02em; line-height: 1.1; color: var(--ink); white-space: nowrap; }
+  .stat b small { font-size: .62em; font-weight: 600; color: var(--muted); letter-spacing: 0; }
   .stat span { font-size: 12.5px; color: var(--muted); font-weight: 600; }
   .stat.gua b { color: var(--guardado-texto); }
   .valor.definir { font-size: 13px; font-weight: 500; color: var(--muted); }
@@ -206,7 +197,7 @@
 
   /* (5) Dia da lista: número grande e dia da semana pequeno. */
   .d-cab { display: inline-flex; align-items: baseline; gap: 7px; }
-  .d-num { font-size: 26px; font-weight: 800; letter-spacing: -.03em; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .d-num { font-size: 26px; font-weight: 600; letter-spacing: -.03em; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
   .d-sem { font-size: 13px; font-weight: 600; color: var(--muted); }
   .hoje-cab .d-num { color: var(--destaque); }
   .hoje-cab .d-sem { color: var(--destaque); font-weight: 700; }
@@ -284,9 +275,8 @@
   .juros-tab th:first-child, .juros-tab td:first-child { text-align: left; }
   .juros-tab td { text-align: right; padding: 7px 4px; border-bottom: 1px solid var(--line); }
   .juros-tab td:last-child { font-weight: 600; }
-  /* 3 por linha; a última linha incompleta estica para não deixar buraco */
-  .atalhos > :last-child:nth-child(3n+2) { grid-column: span 2; }
-  .atalhos > :last-child:nth-child(3n+1) { grid-column: span 3; }
+  /* 2 por linha; se sobrar um, ele ocupa a linha inteira */
+  .atalhos > :last-child:nth-child(odd) { grid-column: span 2; }
 
   /* Login e entrada */
   .tela-centro { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; }
@@ -332,8 +322,6 @@
   .app::before {
     content: ""; position: absolute; z-index: -1; left: 50%; top: 0; width: 100vw; height: 420px; transform: translateX(-50%); pointer-events: none;
     background:
-      radial-gradient(var(--luz-tam) at 85% 0%, var(--luz1), transparent 70%),
-      radial-gradient(55% 60% at 5% 10%, var(--luz2), transparent 70%),
       linear-gradient(var(--topo), transparent);
   }
   .casal { display: flex; align-items: center; gap: 10px; padding: 18px 2px 0; }
@@ -364,7 +352,7 @@
   .ini.bg-q2, .ini-grande.bg-q2, .check .quem.bg-q2 { color: var(--q2-tx, var(--card)); }
 
   .frase { padding: 20px 2px 4px; }
-  .frase h2 { margin: 0; font-size: clamp(31px, 9vw, 40px); line-height: 1.08; font-weight: 750; letter-spacing: -.03em; text-wrap: balance; }
+  .frase h2 { margin: 0; font-size: clamp(31px, 9vw, 40px); line-height: 1.08; font-weight: 600; letter-spacing: -.03em; text-wrap: balance; }
   .frase h2 .n { color: var(--destaque); white-space: nowrap; }
   .frase h2 .n.neg { color: var(--vermelho); }
   .frase h2 .l2 { display: block; color: var(--muted); }
@@ -410,7 +398,7 @@
   .passo.feito .passo-n { background: var(--verde-bg); color: var(--verde); }
   .passo-n .ic { width: 15px; height: 15px; stroke-width: 2.6; }
   .boas-vindas { padding: 22px 2px 8px; }
-  .boas-vindas h2 { margin: 0; font-size: clamp(31px, 9vw, 40px); font-weight: 800; letter-spacing: -.035em; line-height: 1.08; }
+  .boas-vindas h2 { margin: 0; font-size: clamp(31px, 9vw, 40px); font-weight: 600; letter-spacing: -.035em; line-height: 1.08; }
   .boas-vindas > p { margin: 12px 0 18px; color: var(--muted); font-size: 15.5px; line-height: 1.5; max-width: 46ch; }
   .boas-vindas > p b { color: var(--ink); }
   .passo { display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left; padding: 14px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: var(--raio); background: var(--card); color: var(--ink); font-size: 15px; }
@@ -450,7 +438,7 @@
   .barras .eixo { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-top: 8px; }
   .barras p { margin: 10px 0 0; font-size: 13.5px; color: var(--muted); line-height: 1.45; }
   .barras p b { color: var(--vermelho); font-weight: 700; }
-  .atalhos { margin-top: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .atalhos { margin-top: 14px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .atalhos .linha-resumo { margin: 0; flex-direction: column; align-items: flex-start; justify-content: center; gap: 5px; min-height: 64px; padding: 10px 11px; font-size: 13.5px; line-height: 1.25; }
   .atalhos .linha-resumo .ir { display: none; }
   .atalhos .linha-resumo span { flex: none; }
