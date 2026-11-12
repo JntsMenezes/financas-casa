@@ -679,7 +679,7 @@ function renderSeries() {
   const podeSemFim = !!estado.seriesDb;
   $("lista-series").innerHTML = dups.map((d) => `<div class="insight atencao"><p>"${esc(d.desc)}" está lançado duas vezes em ${d.n} ${d.n === 1 ? "data" : "datas"}, a partir de ${dataMedia(d.primeira)}.</p><p>Abra um lançamento que sobra e use Apagar este e os próximos.</p></div>`).join("") + (todas.length ? "" : '<div class="vazio">Nenhuma conta fixa ainda.<br>Ao lançar, escolha "Todo mês" em Repetir.</div>') +
     (podeSemFim && todas.length ? '<p class="nota">Ligue <b>Sempre</b> nas contas que não têm data para acabar: o app cria os próximos meses sozinho.</p>' : "") +
-    (n ? `<button class="btn" type="button" data-estender-todas style="margin-bottom:10px">${IC.repetir} Repetir as ${n} que estão acabando</button>` : "") +
+    (n ? `<button class="btn" type="button" data-estender-todas style="margin-bottom:8px">${IC.repetir} Repetir as ${n} que estão acabando</button>` : "") +
     todas.map((s) => `<div class="serie">
       <div>
         <div class="desc">${esc(s.ultimo.descricao)}</div>
@@ -1167,7 +1167,7 @@ function extratoHtml(doMes, mes, hj) {
     const lista = doMes.filter((l) => l.tipo === tipo && categoriaDe(l) === chave);
     const total = lista.reduce((s, l) => s + Number(l.valor), 0);
     return lista.length
-      ? `<div class="nota num" style="margin:14px 4px 0">${lista.length} ${lista.length === 1 ? "lançamento" : "lançamentos"} · ${brl.format(total)} em ${nomeDoMes(mes)}</div>${diasHtml(lista, hj)}`
+      ? `<div class="nota num" style="margin:16px 4px 0">${lista.length} ${lista.length === 1 ? "lançamento" : "lançamentos"} · ${brl.format(total)} em ${nomeDoMes(mes)}</div>${diasHtml(lista, hj)}`
       : '<div class="vazio">Nada nessa categoria neste mês.</div>';
   }
   if (estado.filtro === "pendentes") {
@@ -2201,7 +2201,7 @@ function marcarComemorado(id) { try { localStorage.setItem("fin-objetivo-" + id,
 function renderCaixinhas() {
   const lista = caixinhasAtivas(), alvo = $("lista-caixinhas");
   if (!lista.length) {
-    alvo.innerHTML = `<p class="nota" style="margin-top:-6px">Cada caixinha separa um dinheiro guardado. Guardar tira da conta, mas não entra como gasto no resumo. Resgatar devolve para a conta.</p>
+    alvo.innerHTML = `<p class="nota" style="margin-top:-8px">Cada caixinha separa um dinheiro guardado. Guardar tira da conta, mas não entra como gasto no resumo. Resgatar devolve para a conta.</p>
       <div class="cx-sugeridas">${[["escudo", "Reserva de emergência"], ["crianca", "Filhos"], ["coracao", cxNos()]]
         .map(([i, n]) => `<span class="cx-chip">${caixaIcone(i)}${n}</span>`).join("")}</div>
       <button class="btn" type="button" data-criar-sugeridas>Criar essas 3 caixinhas</button>
@@ -3187,7 +3187,7 @@ function buscar() {
   const porMes = new Map();
   for (const l of achados.slice(0, 150)) { const m = l.data.slice(0, 7); if (!porMes.has(m)) porMes.set(m, []); porMes.get(m).push(l); }
   alvo.innerHTML = `<div class="nota num">${achados.length} ${achados.length === 1 ? "resultado" : "resultados"}${sai ? ` · ${brl.format(sai)} em saídas` : ""}${ent ? ` · ${brl.format(ent)} em entradas` : ""}</div>` +
-    [...porMes.entries()].map(([m, ls]) => `<div class="dia-cab" style="margin-top:14px">${nomeMes.format(deIso(m + "-01"))}</div>
+    [...porMes.entries()].map(([m, ls]) => `<div class="dia-cab" style="margin-top:16px">${nomeMes.format(deIso(m + "-01"))}</div>
       <div class="lista lista-plana">${ls.map((l) => `<button class="linha-simples ${l.pago && l.data < hoje() ? "baixado" : ""}" data-abrir-lanc="${l.id}">
         <span class="cat-ic ${catCls(l)}">${iconeDe(l)}</span><span class="desc">${esc(l.descricao)}</span>
         <span class="num quando">${dataCurta(l.data)}</span><b class="num ${l.tipo === "receita" ? "pos" : ""}">${l.tipo === "receita" ? "+" : "−"} ${brl.format(Number(l.valor))}</b></button>`).join("")}</div>`).join("");
@@ -3549,7 +3549,7 @@ async function renderAdmin() {
   $("admin-corpo").innerHTML = `
     <section class="adm-sec"><h3>Pedidos esperando</h3><div class="lista">${pend.length ? pend.map(pedidoHtml).join("") : '<div class="nada">Nenhum pedido esperando.</div>'}</div></section>
     <section class="adm-sec"><h3>Convites de casa nova</h3>
-      <button class="btn" type="button" id="adm-novo-convite" style="margin-bottom:10px">Criar convite e enviar</button>
+      <button class="btn" type="button" id="adm-novo-convite" style="margin-bottom:8px">Criar convite e enviar</button>
       ${data.convites.length ? `<div class="lista">${data.convites.map(conviteHtml).join("")}</div>` : ""}</section>
     <section class="adm-sec"><h3>Casas (${data.casas.length})</h3><div class="lista">${data.casas.map(casaHtml).join("")}</div></section>
     ${decididos.length ? `<section class="adm-sec"><h3>Pedidos já decididos</h3><div class="lista">${decididos.map((p) => `<div class="adm-item"><b>${esc(p.nome || p.email || "Sem nome")}</b><small>${p.status === "aprovado" ? "Aprovado" : "Recusado"} ${quando(p.decidido_em)}</small></div>`).join("")}</div></section>` : ""}`;
