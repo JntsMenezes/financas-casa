@@ -18,7 +18,7 @@
     if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
     if (p === "rosa" || p === "noite") document.documentElement.dataset.paleta = p;
     const a = localStorage.getItem("acao");
-    if (a === "azul" || a === "verde") document.documentElement.dataset.acao = a;
+    if (a === "azul" || a === "verde" || a === "rosa") document.documentElement.dataset.acao = a;
     else if (p) localStorage.removeItem("paleta"); // paleta que saiu do app volta para o Ninho
     const escuro = t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
     const fundos = { ninho: ["#faf6ee", "#0e1917"], rosa: ["#edbec6", "#1e1619"], noite: ["#000000", "#000000"] };
@@ -155,6 +155,11 @@
     --acao: #0063ff; --sobre-acao: #ffffff; --acao-texto: #5c9bff;
     --primaria: #0063ff; --primaria-bg: rgba(0,99,255,.2); --sobre-primaria: #ffffff;
   }
+  /* Rosa: o mesmo #edbec6 do fundo da paleta Rosa; claro, então o + leva ícone preto. */
+  html:root[data-paleta="noite"][data-acao="rosa"] {
+    --acao: #edbec6; --sobre-acao: #000000; --acao-texto: #edbec6;
+    --primaria: #edbec6; --primaria-bg: rgba(237,190,198,.16); --sobre-primaria: #000000;
+  }
   html:root[data-paleta="noite"][data-acao="verde"] {
     --acao: #27e0ac; --sobre-acao: #000000; --acao-texto: #27e0ac;
     --primaria: #27e0ac; --primaria-bg: rgba(39,224,172,.16); --sobre-primaria: #000000;
@@ -163,6 +168,7 @@
   :root[data-paleta="rosa"] .fab { box-shadow: 0 10px 24px -10px rgba(12,117,83,.5), 0 2px 6px rgba(0,0,0,.12); }
   :root[data-paleta="noite"] .fab { box-shadow: 0 0 0 1px rgba(255,255,255,.1), 0 10px 28px -8px rgba(0,0,0,.8); }
   :root[data-paleta="noite"][data-acao="azul"] .fab { box-shadow: 0 10px 28px -8px rgba(0,99,255,.55); }
+  :root[data-paleta="noite"][data-acao="rosa"] .fab { box-shadow: 0 10px 28px -8px rgba(237,190,198,.4); }
   :root[data-paleta="noite"][data-acao="verde"] .fab { box-shadow: 0 10px 28px -8px rgba(39,224,172,.4); }
   .seg.tres { grid-template-columns: repeat(3, 1fr); }
   .seg button[data-paleta] { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px 2px; font-size: 13px; min-height: 52px; }
@@ -584,6 +590,10 @@
   .seg button[data-acao="branco"]::before { background: #ffffff; }
   .seg button[data-acao="azul"]::before { background: #0063ff; }
   .seg button[data-acao="verde"]::before { background: #27e0ac; }
+  .seg button[data-acao="rosa"]::before { background: #edbec6; }
+  .seg.quatro { grid-template-columns: repeat(4, 1fr); }
+  .seg button[data-acao] { padding: 0 4px; font-size: 14px; }
+  .seg button[data-acao]::before { margin-right: 6px; }
   .seg button.ativo[data-per] { background: var(--card); color: var(--ink); box-shadow: var(--sombra); }
   .valor-grande input { font-size: 30px; font-weight: 650; letter-spacing: -.02em; padding: 8px 16px; }
   .duas { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -1112,10 +1122,11 @@
   </div>
   <div id="bloco-acao" hidden>
     <div class="campo"><span>Cor dos botões</span></div>
-    <div class="seg tres" id="seg-acao">
+    <div class="seg quatro" id="seg-acao">
       <button type="button" data-acao="branco">Branco</button>
       <button type="button" data-acao="azul">Azul</button>
       <button type="button" data-acao="verde">Verde</button>
+      <button type="button" data-acao="rosa">Rosa</button>
     </div>
   </div>
   <div class="campo"><span>Tema</span></div>

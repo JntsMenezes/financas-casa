@@ -3348,9 +3348,9 @@ function paletaAtual() {
   try { const p = localStorage.getItem("paleta"); return p === "rosa" || p === "noite" ? p : "ninho"; } catch (e) { return "ninho"; }
 }
 // Cor dos botões do Preto, só neste celular.
-const CORES_ACAO = { branco: "#ffffff", azul: "#0063ff", verde: "#27e0ac" };
+const CORES_ACAO = { branco: "#ffffff", azul: "#0063ff", verde: "#27e0ac", rosa: "#edbec6" };
 function acaoAtual() {
-  try { const a = localStorage.getItem("acao"); return a === "azul" || a === "verde" ? a : "branco"; } catch (e) { return "branco"; }
+  try { const a = localStorage.getItem("acao"); return a === "azul" || a === "verde" || a === "rosa" ? a : "branco"; } catch (e) { return "branco"; }
 }
 function aplicarAcao(a) {
   if (a === "branco") delete document.documentElement.dataset.acao;
